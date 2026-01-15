@@ -1,0 +1,142 @@
+EXANTE COMPLIANCE POLICY 2025
+================================
+
+Document Version: 2025.1
+Effective Date: January 1, 2025
+Last Updated: January 15, 2025
+
+SECTION 1: CUSTOMER ELIGIBILITY REQUIREMENTS
+---------------------------------------------
+
+1.1 Age Requirements by Product Type
+
+The following minimum age requirements apply to all customer accounts:
+
+- Standard Stock Trading Account: Minimum age 18 years
+- ETF Trading Account: Minimum age 18 years
+- Mutual Funds Account: Minimum age 18 years
+- Futures Trading Account: Minimum age 21 years
+- Options Trading Account: Minimum age 21 years
+- Margin Trading Account: Minimum age 21 years
+- Forex Trading Account: Minimum age 21 years
+- Cryptocurrency Trading Account: Minimum age 25 years
+- High-Risk Derivatives Account: Minimum age 25 years
+
+Note: Age is calculated from the date of birth as stated on the official identity document to the current date.
+
+1.2 Identity Document Requirements
+
+All customers must provide valid government-issued identification:
+
+- Accepted documents: KTP (Kartu Tanda Penduduk), Passport, or SIM (Surat Izin Mengemudi)
+- Document must be valid and not expired at the time of application
+- Document that has been expired for more than 30 days will not be accepted
+- All information on the document must be clearly legible
+- Document must contain: Full name, identification number, date of birth, and expiration date
+
+1.3 Document Expiration Policy
+
+- Documents expired within 30 days: Application pending, customer must provide new document
+- Documents expired more than 30 days: Application rejected, customer must renew document first
+- Documents with "SEUMUR HIDUP" (lifetime validity): Always accepted if other criteria met
+
+
+SECTION 2: PRODUCT-SPECIFIC RESTRICTIONS
+----------------------------------------
+
+2.1 Futures Trading Restrictions
+
+Futures trading carries significant risk and is restricted to:
+- Customers aged 21 years or older
+- Customers with valid, non-expired identity documents
+- Customers who have completed risk acknowledgment form
+
+Customers under 21 years of age are NOT eligible for Futures trading under any circumstances.
+
+2.2 Cryptocurrency Trading Restrictions
+
+Due to the volatile nature of cryptocurrency markets:
+- Minimum age requirement: 25 years
+- Additional verification required for transactions over $10,000
+- Customers must complete cryptocurrency risk assessment
+
+2.3 Margin and Leverage Restrictions
+
+Margin trading and leveraged products require:
+- Minimum age: 21 years
+- Minimum account balance: $5,000
+- Completion of margin trading agreement
+
+
+SECTION 3: COMPLIANCE VERIFICATION PROCESS
+------------------------------------------
+
+3.1 Automated Verification Steps
+
+1. Document authenticity verification
+2. Age calculation and eligibility check
+3. Product restriction validation
+4. Sanctions and PEP screening
+
+3.2 Manual Review Triggers
+
+The following conditions require manual compliance review:
+- Customer age is within 1 year of minimum requirement
+- Document quality is poor or partially illegible
+- Mismatched information between documents
+- High-risk country of residence
+
+
+SECTION 4: REGIONAL RESTRICTIONS
+--------------------------------
+
+4.1 Indonesia-Specific Requirements
+
+For Indonesian customers (identified by NIK on KTP):
+- NIK must be 16 digits
+- Must be Indonesian citizen or permanent resident
+- Subject to OJK (Otoritas Jasa Keuangan) regulations
+
+4.2 Cross-Border Trading
+
+International customers may face additional restrictions based on their country of residence and applicable regulations.
+
+
+SECTION 5: ACCOUNT TYPES AND FEATURES
+-------------------------------------
+
+5.1 Available Account Types
+
+| Account Type | Min Age | Risk Level | Leverage Available |
+|--------------|---------|------------|-------------------|
+| Stocks       | 18      | Low        | No                |
+| ETF          | 18      | Low        | No                |
+| Mutual Funds | 18      | Low        | No                |
+| Futures      | 21      | High       | Yes               |
+| Options      | 21      | High       | Yes               |
+| Forex        | 21      | High       | Yes               |
+| Crypto       | 25      | Very High  | Limited           |
+
+
+SECTION 6: POLICY VIOLATIONS
+----------------------------
+
+6.1 Consequences of Non-Compliance
+
+Violations of this policy may result in:
+- Account suspension or termination
+- Reporting to regulatory authorities
+- Legal action if fraud is suspected
+
+6.2 Appeals Process
+
+Customers may appeal eligibility decisions by:
+1. Submitting additional documentation
+2. Requesting manual review
+3. Contacting compliance department
+
+
+---
+END OF DOCUMENT
+
+For questions regarding this policy, contact: compliance@exante.com
