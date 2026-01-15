@@ -1,0 +1,15 @@
+# LangChain Core
+langchain>=0.3.0
+langchain-google-genai>=2.0.0
+langgraph>=0.2.0
+
+# Data validation
+pydantic>=2.0.0
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# Optional: For API server
+# fastapi>=0.110.0
+# uvicorn>=0.27.0
+# python-multipart>=0.0.9
