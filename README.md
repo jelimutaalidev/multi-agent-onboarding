@@ -343,8 +343,8 @@ Available in `src/pii_guardian.py`:
 ## 👨‍💻 Author
 
 **Your Name**
-- GitHub: [@yourusername](https://github.com/jelimutaalidev)
-- LinkedIn: [Your LinkedIn](https://linkedin.com/in/moh-jeli-almutaali-5b09772b9)
+- GitHub: [@jelimutaalidev](https://github.com/jelimutaalidev)
+- LinkedIn: [Moh. Jeli Almutaali](https://linkedin.com/in/moh-jeli-almutaali-5b09772b9)
 - Email: jelimutaalidev@gmail.com
 
 ---
