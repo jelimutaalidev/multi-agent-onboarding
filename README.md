@@ -343,9 +343,9 @@ Available in `src/pii_guardian.py`:
 ## 👨‍💻 Author
 
 **Your Name**
-- GitHub: [@yourusername](https://github.com/yourusername)
-- LinkedIn: [Your LinkedIn](https://linkedin.com/in/yourprofile)
-- Email: your.email@example.com
+- GitHub: [@yourusername](https://github.com/jelimutaalidev)
+- LinkedIn: [Your LinkedIn](https://linkedin.com/in/moh-jeli-almutaali-5b09772b9)
+- Email: jelimutaalidev@gmail.com
 
 ---
 
