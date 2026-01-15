@@ -1,0 +1,11 @@
+{
+  "logs": [
+    {
+      "timestamp": "2026-01-16T06:12:21.284938",
+      "action": "CUSTOMER_SAVED",
+      "customer_id": "CUST-20260116061221",
+      "pii_masked": true,
+      "pii_detections_count": 5
+    }
+  ]
+}

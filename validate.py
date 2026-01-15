@@ -1,12 +1,12 @@
 """
 Validate - CLI untuk validasi nasabah end-to-end.
 
-Menggabungkan Document Extractor + Policy Validator untuk
-workflow validasi nasabah lengkap.
+Menggabungkan Document Extractor + Policy Validator + PII Guardian untuk
+workflow validasi nasabah lengkap dengan proteksi data.
 
 Contoh penggunaan:
     python validate.py test_images/sample_ktp.png --account-type Futures
-    python validate.py test_images/sample_ktp.png --account-type Stocks
+    python validate.py test_images/sample_ktp.png --account-type Stocks --save
 """
 
 import os
@@ -30,6 +30,12 @@ if not os.getenv("GOOGLE_API_KEY"):
 
 from src.agent import extract_document_data
 from src.policy_validator import validate_customer_from_document_data
+from src.pii_guardian import (
+    mask_dict, 
+    get_pii_report, 
+    process_and_save_customer,
+    MaskingStrategy
+)
 
 
 def main():
@@ -47,6 +53,16 @@ def main():
         required=True,
         choices=["Stocks", "ETF", "Futures", "Options", "Margin", "Forex", "Crypto"],
         help="Jenis akun yang ingin dibuka"
+    )
+    parser.add_argument(
+        "--save", "-s",
+        action="store_true",
+        help="Simpan data ke database simulasi (dengan PII masking)"
+    )
+    parser.add_argument(
+        "--show-pii-report",
+        action="store_true",
+        help="Tampilkan laporan PII yang terdeteksi"
     )
     
     args = parser.parse_args()
@@ -136,18 +152,56 @@ def main():
             for rec in validation_result['recommendations']:
                 print(f"   - {rec}")
         
-        # Full JSON output
-        print("\n" + "=" * 70)
-        print("[JSON] Validation Result:")
-        print("=" * 70)
-        print(json.dumps(validation_result, indent=2, ensure_ascii=False))
-        print("=" * 70)
-        
     except Exception as e:
         print(f"\n   [ERROR] Gagal validasi: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
+    
+    # Step 4: PII Guardian - Data Protection
+    print(f"\n[STEP 4] PII Guardian - Proteksi Data")
+    print("-" * 70)
+    
+    # Get PII report
+    pii_report = get_pii_report(document_data)
+    print(f"   [SCAN] Terdeteksi {pii_report['total_pii_found']} data sensitif:")
+    for pii_type in pii_report['pii_types']:
+        print(f"   - {pii_type.upper()}")
+    
+    # Show masked preview
+    print(f"\n   [MASK] Data setelah masking:")
+    masked_data = pii_report['masked_data']
+    print(f"   - Nama (masked) : {masked_data.get('nama', 'N/A')}")
+    print(f"   - NIK (masked)  : {masked_data.get('nik', 'N/A')}")
+    
+    # Show full PII report if requested
+    if args.show_pii_report:
+        print("\n" + "-" * 70)
+        print("[PII REPORT] Laporan Lengkap:")
+        print("-" * 70)
+        print(json.dumps(pii_report, indent=2, ensure_ascii=False, default=str))
+    
+    # Step 5: Save to database (optional)
+    if args.save:
+        print(f"\n[STEP 5] Menyimpan ke Database")
+        print("-" * 70)
+        print("   [DB] Menyimpan dengan PII masking...")
+        
+        try:
+            record = process_and_save_customer(document_data, validation_result)
+            print(f"   [OK] Data tersimpan!")
+            print(f"   - Customer ID  : {record['customer_id']}")
+            print(f"   - PII Masked   : {record['pii_masked']}")
+            print(f"   - Fields Masked: {record['pii_fields_count']}")
+        except Exception as e:
+            print(f"   [ERROR] Gagal simpan: {e}")
+    
+    # Full JSON output
+    print("\n" + "=" * 70)
+    print("[JSON] Validation Result:")
+    print("=" * 70)
+    print(json.dumps(validation_result, indent=2, ensure_ascii=False))
+    print("=" * 70)
 
 
 if __name__ == "__main__":
