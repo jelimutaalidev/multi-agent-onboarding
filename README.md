@@ -342,7 +342,7 @@ Available in `src/pii_guardian.py`:
 
 ## 👨‍💻 Author
 
-**Your Name**
+**Moh. Jeli Almutaali**
 - GitHub: [@jelimutaalidev](https://github.com/jelimutaalidev)
 - LinkedIn: [Moh. Jeli Almutaali](https://linkedin.com/in/moh-jeli-almutaali-5b09772b9)
 - Email: jelimutaalidev@gmail.com
