@@ -19,6 +19,26 @@
       "created_at": "2026-01-16T06:12:21.254367",
       "pii_masked": true,
       "pii_fields_count": 5
+    },
+    {
+      "customer_id": "CUST-20260116064637",
+      "document_data": {
+        "nama": "BUD***",
+        "nik": "xxxx-xxxx-xxxx-0001",
+        "tanggal_lahir": "xx-xx-1990",
+        "tempat_lahir": "BANDUNG",
+        "jenis_kelamin": "LAKI-LAKI",
+        "alamat": "JL. [REDACTED]",
+        "tanggal_kadaluarsa": "SEUMUR HIDUP",
+        "jenis_dokumen": "KTP",
+        "confidence": 0.98,
+        "catatan": null
+      },
+      "validation_status": "APPROVED",
+      "account_type": "Futures",
+      "created_at": "2026-01-16T06:46:37.801137",
+      "pii_masked": true,
+      "pii_fields_count": 5
     }
   ]
 }
