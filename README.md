@@ -110,7 +110,7 @@ Protects sensitive personal information before logging or storage.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/yourusername/multi-agent-onboarding.git
+git clone https://github.com/jelimutaalidev/multi-agent-onboarding.git
 cd multi-agent-onboarding
 
 # 2. Create conda environment (recommended)
