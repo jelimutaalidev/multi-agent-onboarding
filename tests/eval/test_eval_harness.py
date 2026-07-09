@@ -39,3 +39,14 @@ class TestTestCaseStructure:
         cases = load_cases()
         ids = [c["id"] for c in cases]
         assert len(ids) == len(set(ids)), f"Duplicate IDs: {[id for id in ids if ids.count(id) > 1]}"
+
+
+from .evaluate_pipeline import evaluate_test_case
+
+
+class TestEvalPipeline:
+    def test_evaluate_test_case(self, test_case):
+        result = evaluate_test_case(test_case)
+        assert result["passed"], (
+            f"{test_case['id']} FAILED: {'; '.join(result['errors'])}"
+        )
