@@ -28,9 +28,10 @@ if not os.getenv("GOOGLE_API_KEY"):
     print("   Silakan set GOOGLE_API_KEY di file .env")
     sys.exit(1)
 
-from src.langfuse_tracing import init_tracing, flush_traces, pipeline_span
+from src.langfuse_tracing import init_tracing, get_handler, flush_traces, pipeline_span
 
 init_tracing()
+handler = get_handler()
 
 from src.agent import extract_document_data
 from src.schemas import make_routing_decision, RoutingDecision
@@ -82,7 +83,7 @@ def main():
     print("=" * 70)
     
     # Pipeline tracing span
-    with pipeline_span("onboarding-pipeline", account_type=args.account_type) as handler:
+    with pipeline_span("onboarding-pipeline", account_type=args.account_type):
     
         # Step 1: Extract document data
         print(f"\n[STEP 1] Ekstraksi Data Dokumen")
