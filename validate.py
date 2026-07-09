@@ -28,12 +28,12 @@ if not os.getenv("GOOGLE_API_KEY"):
     print("   Silakan set GOOGLE_API_KEY di file .env")
     sys.exit(1)
 
-from src.langfuse_tracing import init_tracing, get_handler, flush_traces, pipeline_span
+from src.langfuse_tracing import init_tracing, flush_traces, pipeline_span
 
 init_tracing()
-handler = get_handler()
 
 from src.agent import extract_document_data
+from src.schemas import make_routing_decision, RoutingDecision
 from src.policy_validator import validate_customer_from_document_data
 from src.pii_guardian import (
     mask_dict, 
@@ -82,7 +82,7 @@ def main():
     print("=" * 70)
     
     # Pipeline tracing span
-    with pipeline_span("onboarding-pipeline", account_type=args.account_type):
+    with pipeline_span("onboarding-pipeline", account_type=args.account_type) as handler:
     
         # Step 1: Extract document data
         print(f"\n[STEP 1] Ekstraksi Data Dokumen")
@@ -100,6 +100,17 @@ def main():
             print(f"   - Jenis Dokumen : {document_data['jenis_dokumen']}")
             print(f"   - Kadaluarsa    : {document_data['tanggal_kadaluarsa']}")
             print(f"   - Confidence    : {document_data['confidence'] * 100:.1f}%")
+            
+            # Confidence-based routing
+            decision = make_routing_decision(document_data.get("confidence", 0.0))
+            
+            if decision == RoutingDecision.REJECTED:
+                print(f"\n   [REJECTED] Kualitas dokumen terlalu rendah (confidence: {document_data.get('confidence', 0):.1%})")
+                print("   Silakan upload foto dokumen yang lebih jelas.")
+                sys.exit(1)
+            elif decision == RoutingDecision.PENDING_REVIEW:
+                print(f"\n   [REVIEW] Kualitas dokumen perlu diperiksa (confidence: {document_data.get('confidence', 0):.1%})")
+                print("   Data akan diverifikasi manual oleh tim operasional.")
             
         except Exception as e:
             print(f"\n   [ERROR] Gagal ekstrak dokumen: {e}")
