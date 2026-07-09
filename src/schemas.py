@@ -2,6 +2,8 @@
 Pydantic schemas untuk structured output dari Document Extractor Agent.
 """
 
+import uuid
+from datetime import datetime
 from typing import Optional
 from enum import Enum
 
@@ -41,6 +43,20 @@ def make_routing_decision(confidence: float) -> RoutingDecision:
     if confidence >= CONFIDENCE_THRESHOLDS[RoutingDecision.PENDING_REVIEW]:
         return RoutingDecision.PENDING_REVIEW
     return RoutingDecision.REJECTED
+
+
+class ReviewRequest(BaseModel):
+    """Schema for a human review request when automated confidence is insufficient."""
+
+    review_id: str = Field(
+        default_factory=lambda: f"REVIEW-{datetime.now().strftime('%Y%m%d%H%M%S%f')}-{uuid.uuid4().hex[:8]}"
+    )
+    customer_name: str
+    confidence: float
+    reason: str
+    document_data: dict
+    status: str = "PENDING_REVIEW"
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
 
 
 class DocumentType(str, Enum):
