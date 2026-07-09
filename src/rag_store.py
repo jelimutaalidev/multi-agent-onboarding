@@ -14,6 +14,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
+from langchain_core.vectorstores import VectorStoreRetriever
 
 
 # Paths
@@ -144,7 +145,7 @@ def initialize_vector_store(force_reload: bool = False) -> Chroma:
     return _vector_store
 
 
-def get_policy_retriever(k: int = 4):
+def get_policy_retriever(k: int = 4) -> "VectorStoreRetriever":
     """
     Get retriever untuk search policy documents.
     
@@ -174,7 +175,7 @@ def search_policies(query: str, k: int = 4) -> List[Document]:
     return results
 
 
-def search_policies_with_score(query: str, k: int = 4) -> List[tuple]:
+def search_policies_with_score(query: str, k: int = 4) -> List[tuple[Document, float]]:
     """
     Search policy documents dan return dengan similarity score.
     

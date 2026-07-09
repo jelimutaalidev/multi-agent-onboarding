@@ -1,5 +1,4 @@
-"""
-FastAPI application for the Multi-Agent Onboarding system.
+"""FastAPI application for the Multi-Agent Onboarding system.
 
 Provides REST endpoints for document validation, customer management,
 and audit log retrieval.
@@ -35,6 +34,20 @@ app = FastAPI(
 
 
 def _run_pipeline(image_bytes: bytes, filename: str, account_type: str) -> dict:
+    """
+    Jalankan full pipeline validasi: extract -> validate -> PII -> save.
+
+    Args:
+        image_bytes: Raw bytes dari file gambar
+        filename: Nama file asli (untuk validasi ekstensi)
+        account_type: Jenis akun trading
+
+    Returns:
+        dict: Hasil pipeline dengan keys extraction, validation, pii_report, saved_record
+
+    Raises:
+        ValueError: Jika format file tidak didukung
+    """
     suffix = Path(filename).suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
         raise ValueError(
@@ -66,7 +79,8 @@ def _run_pipeline(image_bytes: bytes, filename: str, account_type: str) -> dict:
 
 
 @app.get("/api/v1/health")
-async def health():
+async def health() -> dict:
+    """Health check endpoint."""
     return {"status": "ok", "service": "multi-agent-onboarding"}
 
 
@@ -74,7 +88,24 @@ async def health():
 async def validate(
     file: UploadFile = File(...),
     account_type: str = Form(...),
-):
+) -> dict:
+    """
+    Upload dan validasi dokumen identitas nasabah.
+
+    Menerima file gambar (KTP/Paspor) dan jenis akun, menjalankan
+    pipeline 3 agent: Document Extractor -> Policy Validator -> PII Guardian.
+
+    Args:
+        file: File gambar dokumen (jpg, jpeg, png, webp)
+        account_type: Jenis akun (Stocks, ETF, Futures, Options, Margin, Forex, Crypto)
+
+    Returns:
+        dict: Hasil extraction, validation, PII report, dan saved record
+
+    Raises:
+        HTTPException 400: Jika input tidak valid
+        HTTPException 500: Jika pipeline error
+    """
     if account_type not in ACCOUNT_TYPES:
         raise HTTPException(
             status_code=400,
@@ -103,11 +134,13 @@ async def validate(
 
 @app.get("/api/v1/customers")
 async def list_customers():
+    """Daftar semua customer yang tersimpan."""
     db = Database()
     return JSONResponse(content=db.get_customers())
 
 
 @app.get("/api/v1/audit-logs")
 async def list_audit_logs():
+    """Daftar semua audit log entries."""
     db = Database()
     return JSONResponse(content=db.get_audit_logs())

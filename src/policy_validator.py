@@ -11,6 +11,8 @@ from typing import Optional
 from pydantic import BaseModel, Field
 from enum import Enum
 
+from typing import Any
+
 from langchain.agents import create_agent
 from langchain.tools import tool
 
@@ -258,10 +260,10 @@ Berikan hasil validasi yang terstruktur dengan:
 Selalu gunakan tools yang tersedia untuk mendapatkan informasi yang akurat."""
 
 
-def create_policy_validator_agent():
+def create_policy_validator_agent() -> Any:
     """
     Buat Policy Validator Agent dengan RAG capability.
-    
+
     Returns:
         Agent: LangChain agent dengan tools untuk validasi
     """

@@ -2,9 +2,10 @@
 Pydantic schemas untuk structured output dari Document Extractor Agent.
 """
 
-from pydantic import BaseModel, Field
 from typing import Optional
 from enum import Enum
+
+from pydantic import BaseModel, Field
 
 
 class DocumentType(str, Enum):
@@ -69,18 +70,19 @@ class DocumentData(BaseModel):
         description="Catatan tambahan tentang kualitas gambar atau masalah ekstraksi"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "nama": "BUDI SANTOSO",
                 "nik": "3201234567890001",
                 "tanggal_lahir": "15-08-1990",
                 "tempat_lahir": "JAKARTA",
                 "jenis_kelamin": "LAKI-LAKI",
-                "alamat": "JL. MERDEKA NO. 123, RT 001/RW 002, KEL. SUKAMAJU",
+                "alamat": "JL. MERDEKA NO. 123",
                 "tanggal_kadaluarsa": "SEUMUR HIDUP",
                 "jenis_dokumen": "KTP",
                 "confidence": 0.95,
-                "catatan": None
+                "catatan": None,
             }
         }
+    }
