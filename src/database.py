@@ -54,7 +54,7 @@ class Database:
         pii_fields_count: int = 0,
         pii_masked: bool = True,
     ) -> dict:
-        customer_id = f"CUST-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        customer_id = f"CUST-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
 
         with Session(self.engine) as session:
             customer = Customer(

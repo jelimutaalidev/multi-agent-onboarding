@@ -46,3 +46,6 @@ ENV/
 
 # ChromaDB persistent store (runtime data)
 data/chroma_db/
+
+# Test cache
+.pytest_cache/
