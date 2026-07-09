@@ -16,13 +16,17 @@ python main.py test_images/sample_ktp.png
 python validate.py test_images/sample_ktp.png -a Futures
 python validate.py test_images/sample_ktp_young.png -a Futures
 python validate.py test_images/sample_ktp.png -a Crypto --save --show-pii-report
+
+# API server
+python api.py
+python api.py 0.0.0.0 8080
+
+# tests
+python -m pytest tests/ -v -m "not integration"
+python -m pytest tests/test_api.py -v
 ```
 
 Account types: `Stocks`, `ETF`, `Futures`, `Options`, `Margin`, `Forex`, `Crypto`
-
-## No tests, no CI, no Docker, no API
-
-None of these exist yet. The `PRD.md` defines P0-P2 improvements (ChromaDB, SQLite, pytest, FastAPI, Docker) — none implemented.
 
 ## Architecture
 
@@ -36,25 +40,38 @@ None of these exist yet. The `PRD.md` defines P0-P2 improvements (ChromaDB, SQLi
 
 Data flow: `main.py` → agent only; `validate.py` → agent → policy → pii
 
+### FastAPI
+
+`src/api.py` serves 4 REST endpoints, `api.py` is the run entry point.
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/v1/health` | GET | Health check |
+| `/api/v1/validate` | POST | Run full pipeline (file upload + account_type form) |
+| `/api/v1/customers` | GET | List saved customers |
+| `/api/v1/audit-logs` | GET | List audit log entries |
+
 ## Key gotchas
 
 - `create_agent()` from `langchain.agents`, NOT the legacy `langchain.agents.initialize`. Uses structured output via `response_format=`.
-- RAG store (`src/rag_store.py`): `InMemoryVectorStore` (not persistent). On every `create_policy_validator_agent()` call, `initialize_vector_store()` re-indexes from scratch.
-- Vector store is `InMemoryVectorStore` — it will be migrated to ChromaDB per PRD P0-1.
-- Database (`src/pii_guardian.py:SimulatedDatabase`): JSON files at `data/db/customers.json` and `data/db/audit_log.json`. Not concurrent-safe. Per PRD P0-2, target is SQLite.
+- RAG store (`src/rag_store.py`): ChromaDB persistent at `data/chroma_db/`. Auto-loads on restart; pass `force_reload=True` to re-index.
+- Embeddings: `HuggingFaceEndpointEmbeddings` via HF Inference API (remote, no local model). Requires `HUGGINGFACEHUB_API_TOKEN` in `.env`.
+- Database (`src/database.py`): SQLite via SQLAlchemy at `data/db/onboarding.db`. Concurrent-safe (not yet production-tested).
+- PII Guardian (`src/pii_guardian.py`): `mask_dict()` called *before* `Database.save_customer()`. Database receives pre-masked data.
 - Indonesian-language prompts and output throughout.
 - `sys.stdout.reconfigure(encoding='utf-8')` in both `main.py` and `validate.py` for Windows.
+- Policy validator tests use `.func()` to unwrap `@tool` decorators (e.g., `calculate_age.func`).
 
 ## Requirements overview
 
 ```
 langchain>=0.3.0, langchain-google-genai>=2.0.0, langgraph>=0.2.0
-langchain-huggingface, sentence-transformers, chromadb, langchain-chroma
+langchain-huggingface, chromadb, langchain-chroma, sqlalchemy
 pydantic>=2.0.0, python-dotenv
+fastapi, uvicorn, python-multipart
+pytest
 ```
-
-FastAPI/uvicorn/multipart commented out — uncomment when implementing API.
 
 ## Config
 
-`.env` must contain `GOOGLE_API_KEY`. `.env` is gitignored; copy from `.env.example`.
+`.env` must contain `GOOGLE_API_KEY` and `HUGGINGFACEHUB_API_TOKEN`. `.env` is gitignored; copy from `.env.example`.
