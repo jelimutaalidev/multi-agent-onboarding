@@ -33,7 +33,7 @@ init_tracing()
 from src.agent import extract_document_data
 from src.policy_validator import validate_customer_from_document_data
 from src.pii_guardian import get_pii_report, process_and_save_customer
-from src.schemas import make_routing_decision, RoutingDecision
+from src.schemas import make_routing_decision, RoutingDecision, ReviewRequest
 from src.database import Database
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
@@ -145,11 +145,13 @@ def _run_pipeline(image_bytes: bytes, filename: str, account_type: str) -> dict:
         }
 
         if decision == RoutingDecision.PENDING_REVIEW:
-            result["review_required"] = True
-            result["review_reason"] = (
-                f"Confidence score {document_data['confidence']:.1%} memerlukan review manual. "
-                f"Dokumen diproses dengan kewaspadaan tinggi."
+            review = ReviewRequest(
+                customer_name=document_data.get("nama", "UNKNOWN"),
+                confidence=document_data["confidence"],
+                reason=f"Kualitas dokumen perlu diperiksa (confidence: {document_data['confidence']:.1%})",
+                document_data=document_data,
             )
+            result["review_request"] = review.model_dump()
 
         return result
     finally:
