@@ -3,6 +3,8 @@
   <img src="https://img.shields.io/badge/LangChain-v1.2+-green?style=for-the-badge&logo=chainlink&logoColor=white" alt="LangChain">
   <img src="https://img.shields.io/badge/Gemini-2.5_Flash-orange?style=for-the-badge&logo=google&logoColor=white" alt="Gemini">
   <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License">
+  <img src="https://img.shields.io/github/actions/workflow/status/jelimutaalidev/multi-agent-onboarding/ci.yml?style=for-the-badge&logo=githubactions&logoColor=white" alt="CI">
+  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker">
 </p>
 
 # 🤖 Multi-Agent Customer Onboarding System
@@ -17,27 +19,78 @@
 
 This project demonstrates a **production-ready multi-agent architecture** for automating customer onboarding in financial services. The system combines **Computer Vision**, **RAG (Retrieval-Augmented Generation)**, and **Data Security** principles to create a seamless, secure, and compliant onboarding workflow.
 
-### 🏗️ Architecture
+## 🗺️ Architecture
 
+```mermaid
+flowchart TB
+    subgraph Client["Client Layer"]
+        CLI["CLI (main.py / validate.py)"]
+        REST["REST API (api.py / FastAPI)"]
+    end
+
+    subgraph Pipeline["Pipeline Layer"]
+        direction TB
+        A1["Agent 1: Document Extractor<br/>(Gemini Vision + LangChain)"]
+        A2["Agent 2: Policy Validator<br/>(RAG + LangChain Tools)"]
+        A3["Agent 3: PII Guardian<br/>(PII Masking + Security)"]
+        A1 -->|extracted data| A2
+        A2 -->|validation result| A3
+    end
+
+    subgraph Storage["Storage Layer"]
+        CHROMA["ChromaDB<br/>(Policy Vectors)"]
+        SQLITE["SQLite / SQLAlchemy<br/>(Customers + Audit Logs)"]
+    end
+
+    subgraph External["External Services"]
+        GEMINI["Google Gemini 2.5 Flash<br/>(Vision + Text)"]
+        HF["HuggingFace Inference API<br/>(Embeddings)"]
+    end
+
+    CLI --> A1
+    REST --> A1
+    A3 --> SQLITE
+    A2 --> CHROMA
+    A1 --> GEMINI
+    A2 --> GEMINI
+    A3 --> GEMINI
+    CHROMA --> HF
+
+    classDef client fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    classDef agent fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    classDef storage fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef external fill:#fce4ec,stroke:#c62828,stroke-width:2px
+
+    class CLI,REST client
+    class A1,A2,A3 agent
+    class CHROMA,SQLITE storage
+    class GEMINI,HF external
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    CUSTOMER ONBOARDING PIPELINE                         │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐              │
-│  │   AGENT 1    │    │   AGENT 2    │    │   AGENT 3    │              │
-│  │  Document    │───▶│   Policy     │───▶│     PII      │───▶ Database │
-│  │  Extractor   │    │  Validator   │    │   Guardian   │              │
-│  │  (Vision)    │    │    (RAG)     │    │  (Security)  │              │
-│  └──────────────┘    └──────────────┘    └──────────────┘              │
-│         │                   │                   │                       │
-│         ▼                   ▼                   ▼                       │
-│   ┌──────────┐       ┌──────────┐       ┌──────────┐                   │
-│   │  Gemini  │       │ Vector   │       │   PII    │                   │
-│   │  Vision  │       │  Store   │       │ Masking  │                   │
-│   └──────────┘       └──────────┘       └──────────┘                   │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+
+### Data Flow
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant A1 as Document Extractor
+    participant A2 as Policy Validator
+    participant A3 as PII Guardian
+    participant DB as Database
+
+    C->>A1: Upload ID document
+    A1->>A1: Read image (base64)
+    A1->>A1: Gemini Vision API
+    A1-->>C: Document data (name, NIK, DOB)
+    C->>A2: Document data + account type
+    A2->>A2: Calculate age
+    A2->>A2: Check document validity
+    A2->>A2: Query policy via RAG
+    A2-->>C: Approval / rejection
+    C->>A3: Mask sensitive fields
+    A3->>A3: Detect PII (NIK, name, address)
+    A3->>A3: Apply masking strategy
+    A3->>DB: Save masked data
+    A3-->>C: Saved record
 ```
 
 ---
@@ -80,7 +133,7 @@ Validates customer eligibility against company policies using **Retrieval-Augmen
 - Policy-based decision making with explanations
 - Returns approval status with policy references
 
-**Tech Stack:** `LangChain Tools` · `HuggingFace Embeddings` · `InMemoryVectorStore`
+**Tech Stack:** `LangChain Tools` · `HuggingFace Embeddings` · `ChromaDB Vector Store`
 
 ---
 
@@ -94,7 +147,7 @@ Protects sensitive personal information before logging or storage.
 - Automatic masking before database storage
 - Audit logging for compliance
 
-**Tech Stack:** `LangChain PIIMiddleware` · `Regex Patterns` · `JSON Database`
+**Tech Stack:** `LangChain PIIMiddleware` · `Regex Patterns` · `SQLAlchemy + SQLite`
 
 ---
 
@@ -103,26 +156,46 @@ Protects sensitive personal information before logging or storage.
 ### Prerequisites
 
 - Python 3.10+
-- Conda (recommended) or virtualenv
 - Google API Key for Gemini
+- Docker (optional, for containerized deployment)
 
-### Quick Start
+### Quick Start (Local)
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/jelimutaalidev/multi-agent-onboarding.git
 cd multi-agent-onboarding
 
-# 2. Create conda environment (recommended)
-conda create -n onboarding python=3.10
-conda activate onboarding
+# 2. Create virtual environment
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# .\venv\Scripts\Activate  # Windows
 
 # 3. Install dependencies
-pip install -r requirements.txt
+make install
 
 # 4. Configure API key
 cp .env.example .env
+# Edit .env and add your GOOGLE_API_KEY (get one at https://aistudio.google.com)
+```
+
+### Quick Start (Docker)
+
+```bash
+# 1. Configure API key
+cp .env.example .env
 # Edit .env and add your GOOGLE_API_KEY
+
+# 2. Build and run
+make docker-up
+
+# Open http://localhost:8000/docs
+
+# 3. View logs
+make docker-logs
+
+# 4. Stop
+make docker-down
 ```
 
 ### Dependencies
@@ -157,7 +230,33 @@ python validate.py test_images/sample_ktp.png -a Futures --save --show-pii-repor
 python main.py test_images/sample_ktp.png
 ```
 
-### Python API
+### REST API Server
+
+```bash
+# Start locally
+make api        # http://localhost:8000/docs
+
+# Start with Docker
+make docker-up  # http://localhost:8000/docs
+```
+
+```bash
+# Validate a document via API
+curl -X POST http://localhost:8000/api/v1/validate \
+  -F "file=@test_images/sample_ktp.png" \
+  -F "account_type=Futures"
+
+# Health check
+curl http://localhost:8000/api/v1/health
+
+# List customers
+curl http://localhost:8000/api/v1/customers
+
+# List audit logs
+curl http://localhost:8000/api/v1/audit-logs
+```
+
+### Python SDK
 
 ```python
 from src.agent import extract_document_data
@@ -227,32 +326,51 @@ if validation["status"] == "APPROVED":
 
 ```
 multi-agent-onboarding/
-├── 📄 README.md                 # This file
+├── 📄 README.md                 # Documentation
 ├── 📄 requirements.txt          # Python dependencies
 ├── 📄 .env.example              # Environment template
 ├── 📄 .gitignore                # Git ignore rules
+├── 🐳 Dockerfile                # Container build
+├── 🐳 docker-compose.yml        # Multi-service orchestration
+├── 📋 Makefile                  # Developer task runner
 │
 ├── 🐍 main.py                   # CLI - Document extraction only
-├── 🐍 validate.py               # CLI - Full pipeline
+├── 🐍 validate.py               # CLI - Full pipeline (agent + policy + PII)
+├── 🐍 api.py                    # CLI - FastAPI server entry point
 │
 ├── 📂 src/
 │   ├── 🐍 __init__.py
-│   ├── 🐍 agent.py              # Document Extractor Agent
-│   ├── 🐍 policy_validator.py   # Policy Validator Agent
-│   ├── 🐍 pii_guardian.py       # PII Guardian Agent
-│   ├── 🐍 rag_store.py          # Vector Store & Retrieval
-│   └── 🐍 schemas.py            # Pydantic Schemas
+│   ├── 🐍 agent.py              # Agent 1: Document Extractor (Vision)
+│   ├── 🐍 policy_validator.py   # Agent 2: Policy Validator (RAG)
+│   ├── 🐍 pii_guardian.py       # Agent 3: PII Guardian (Security)
+│   ├── 🐍 rag_store.py          # Vector Store (ChromaDB) + Retrieval
+│   ├── 🐍 database.py           # SQLite via SQLAlchemy ORM
+│   ├── 🐍 schemas.py            # Pydantic schemas
+│   └── 🐍 api.py                # FastAPI application
+│
+├── 📂 tests/
+│   ├── 🐍 conftest.py           # Shared test fixtures
+│   ├── 🐍 test_agent.py         # Agent tests
+│   ├── 🐍 test_policy_validator.py
+│   ├── 🐍 test_pii_guardian.py
+│   ├── 🐍 test_database.py
+│   ├── 🐍 test_rag_store.py
+│   ├── 🐍 test_schemas.py
+│   └── 🐍 test_api.py           # API endpoint tests
 │
 ├── 📂 data/
 │   ├── 📂 policies/             # Compliance documents for RAG
 │   │   └── 📄 exante_compliance_policy_2025.txt
-│   └── 📂 db/                   # Simulated database
-│       ├── 📄 customers.json
-│       └── 📄 audit_log.json
+│   ├── 📂 chroma_db/            # Persistent vector store (runtime)
+│   └── 📂 db/                   # SQLite database (runtime)
+│       └── 🗄️ onboarding.db
 │
-└── 📂 test_images/              # Sample test images
-    ├── 🖼️ sample_ktp.png        # Adult (35 years) - APPROVED
-    └── 🖼️ sample_ktp_young.png  # Young (20 years) - REJECTED
+├── 📂 test_images/              # Sample test images
+│   ├── 🖼️ sample_ktp.png        # Adult (35 years) → APPROVED
+│   └── 🖼️ sample_ktp_young.png  # Young (20 years) → REJECTED
+│
+└── 📂 .github/workflows/
+    └── ⚙️ ci.yml                # GitHub Actions CI
 ```
 
 ---
@@ -271,11 +389,20 @@ multi-agent-onboarding/
 ### Run Tests
 
 ```bash
+# All unit tests
+make test
+
+# Specific test file
+python -m pytest tests/test_api.py -v
+
 # Test approval case
 python validate.py test_images/sample_ktp.png -a Futures
 
 # Test rejection case
 python validate.py test_images/sample_ktp_young.png -a Futures
+
+# Manual pipeline (with save & PII report)
+python validate.py test_images/sample_ktp.png -a Crypto --save --show-pii-report
 ```
 
 ---
@@ -318,12 +445,16 @@ Available in `src/pii_guardian.py`:
 
 ## 🛣️ Roadmap
 
-- [ ] Add FastAPI REST endpoint
-- [ ] Integrate with real database (PostgreSQL)
-- [ ] Add OCR fallback for low-quality images
-- [ ] Implement webhook notifications
-- [ ] Add multi-language support
-- [ ] Create Docker deployment
+- [x] FastAPI REST endpoint (`/health`, `/validate`, `/customers`, `/audit-logs`)
+- [x] SQLite database with SQLAlchemy ORM
+- [x] ChromaDB persistent vector store
+- [x] Comprehensive pytest test suite (81 tests)
+- [x] Docker containerization
+- [x] CI/CD with GitHub Actions
+- [ ] PostgreSQL production database
+- [ ] LangSmith observability
+- [ ] Load testing (k6/Locust)
+- [ ] Kubernetes deployment manifests
 
 ---
 
@@ -333,9 +464,13 @@ Available in `src/pii_guardian.py`:
 |----------|------------|
 | **LLM Framework** | LangChain v1.2+, LangGraph |
 | **Vision Model** | Google Gemini 2.5 Flash |
-| **Embeddings** | HuggingFace sentence-transformers |
-| **Vector Store** | LangChain InMemoryVectorStore |
+| **Embeddings** | HuggingFace Inference API (sentence-transformers) |
+| **Vector Store** | ChromaDB (persistent) |
+| **Database** | SQLAlchemy + SQLite |
+| **API Framework** | FastAPI + Uvicorn |
 | **Data Validation** | Pydantic v2 |
+| **Containerization** | Docker + Docker Compose |
+| **CI/CD** | GitHub Actions |
 | **Language** | Python 3.10+ |
 
 ---

@@ -351,7 +351,7 @@ def create_pii_guardian():
     
     # Create agent with PII middleware
     agent = create_agent(
-        model="google_genai:gemini-2.5-flash",
+        model="google_genai:gemini-2.5-flash-lite",
         tools=[mask_sensitive_data, detect_pii_in_text, save_to_secure_database],
         system_prompt="""Kamu adalah PII Guardian, security agent yang bertugas melindungi data sensitif.
 
