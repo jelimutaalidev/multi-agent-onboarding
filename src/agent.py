@@ -7,9 +7,7 @@ data dari foto dokumen identitas (KTP, Paspor, SIM).
 
 import base64
 from pathlib import Path
-from typing import Union
-
-from typing import Any
+from typing import Any, Optional, Union
 
 from langchain.agents import create_agent
 from langchain.messages import HumanMessage
@@ -109,7 +107,7 @@ def create_document_extractor_agent() -> Any:
     return agent
 
 
-def extract_document_data(image_path: Union[str, Path]) -> dict:
+def extract_document_data(image_path: Union[str, Path], callbacks: Optional[list] = None) -> dict:
     """
     Ekstrak data dari foto dokumen identitas (KTP/Paspor/SIM).
     
@@ -174,7 +172,10 @@ def extract_document_data(image_path: Union[str, Path]) -> dict:
     )
     
     # Invoke agent
-    result = agent.invoke({"messages": [message]})
+    result = agent.invoke(
+        {"messages": [message]},
+        config={"callbacks": callbacks or []},
+    )
     
     # Extract structured response
     structured_data: DocumentData = result["structured_response"]
@@ -185,7 +186,8 @@ def extract_document_data(image_path: Union[str, Path]) -> dict:
 
 def extract_document_data_from_base64(
     image_base64: str,
-    mime_type: str = "image/jpeg"
+    mime_type: str = "image/jpeg",
+    callbacks: Optional[list] = None,
 ) -> dict:
     """
     Ekstrak data dari gambar yang sudah di-encode base64.
@@ -218,7 +220,10 @@ def extract_document_data_from_base64(
     )
     
     # Invoke agent
-    result = agent.invoke({"messages": [message]})
+    result = agent.invoke(
+        {"messages": [message]},
+        config={"callbacks": callbacks or []},
+    )
     
     # Extract structured response
     structured_data: DocumentData = result["structured_response"]

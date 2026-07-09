@@ -291,7 +291,8 @@ def validate_customer(
     tanggal_lahir: str,
     tanggal_kadaluarsa: str,
     jenis_dokumen: str,
-    account_type: str
+    account_type: str,
+    callbacks: Optional[list] = None,
 ) -> dict:
     """
     Validasi calon nasabah untuk membuka akun.
@@ -329,7 +330,10 @@ Lakukan validasi lengkap dan berikan keputusan beserta alasannya."""
     message = HumanMessage(content=request_text)
     
     # Invoke agent
-    result = agent.invoke({"messages": [message]})
+    result = agent.invoke(
+        {"messages": [message]},
+        config={"callbacks": callbacks or []},
+    )
     
     # Extract structured response
     validation_result: ValidationResult = result["structured_response"]
@@ -339,7 +343,8 @@ Lakukan validasi lengkap dan berikan keputusan beserta alasannya."""
 
 def validate_customer_from_document_data(
     document_data: dict,
-    account_type: str
+    account_type: str,
+    callbacks: Optional[list] = None,
 ) -> dict:
     """
     Validasi nasabah menggunakan data hasil ekstraksi dokumen.
@@ -357,5 +362,6 @@ def validate_customer_from_document_data(
         tanggal_lahir=document_data.get("tanggal_lahir", ""),
         tanggal_kadaluarsa=document_data.get("tanggal_kadaluarsa", ""),
         jenis_dokumen=document_data.get("jenis_dokumen", ""),
-        account_type=account_type
+        account_type=account_type,
+        callbacks=callbacks,
     )

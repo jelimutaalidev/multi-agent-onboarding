@@ -1,22 +1,35 @@
 """FastAPI application for the Multi-Agent Onboarding system.
 
 Provides REST endpoints for document validation, customer management,
-and audit log retrieval.
+and audit log retrieval with structured logging, CORS, and rate limiting.
 """
 
 import asyncio
 import os
 import tempfile
 from pathlib import Path
+from typing import Any
 
+import structlog
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, UploadFile, HTTPException
+from fastapi import FastAPI, File, Form, UploadFile, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIASGIMiddleware
+from slowapi.util import get_remote_address
+
+from src.logging_config import setup_logging, get_request_id
+from src.langfuse_tracing import init_tracing, get_handler, flush_traces, shutdown_tracing, pipeline_span
 
 load_dotenv()
 
 if not os.getenv("GOOGLE_API_KEY"):
     raise RuntimeError("GOOGLE_API_KEY tidak ditemukan di .env")
+
+init_tracing()
+handler = get_handler()
 
 from src.agent import extract_document_data
 from src.policy_validator import validate_customer_from_document_data
@@ -26,28 +39,60 @@ from src.database import Database
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 ACCOUNT_TYPES = {"Stocks", "ETF", "Futures", "Options", "Margin", "Forex", "Crypto"}
 
+ENVIRONMENT = os.getenv("APP_ENV", "development")
+
+setup_logging(ENVIRONMENT)
+logger: Any = structlog.get_logger()
+
+from slowapi import Limiter
+
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI(
     title="Multi-Agent Onboarding API",
     description="Multi-Agent document validation pipeline with PII protection",
     version="1.0.0",
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+_cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in _cors_origins.split(",")],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+    max_age=3600,
+)
+
+app.add_middleware(SlowAPIASGIMiddleware)
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next: Any) -> JSONResponse:
+    request_id = get_request_id()
+    log = logger.bind(request_id=request_id)
+    log.info("request_started", method=request.method, path=request.url.path)
+
+    try:
+        response = await call_next(request)
+        log.info(
+            "request_finished",
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+        )
+    except Exception as exc:
+        log.error("request_failed", method=request.method, path=request.url.path, error=str(exc))
+        raise
+
+    response.headers["X-Request-ID"] = request_id
+    return response
+
 
 def _run_pipeline(image_bytes: bytes, filename: str, account_type: str) -> dict:
-    """
-    Jalankan full pipeline validasi: extract -> validate -> PII -> save.
-
-    Args:
-        image_bytes: Raw bytes dari file gambar
-        filename: Nama file asli (untuk validasi ekstensi)
-        account_type: Jenis akun trading
-
-    Returns:
-        dict: Hasil pipeline dengan keys extraction, validation, pii_report, saved_record
-
-    Raises:
-        ValueError: Jika format file tidak didukung
-    """
     suffix = Path(filename).suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
         raise ValueError(
@@ -60,13 +105,22 @@ def _run_pipeline(image_bytes: bytes, filename: str, account_type: str) -> dict:
         tmp_path = tmp.name
 
     try:
-        document_data = extract_document_data(tmp_path)
-        validation_result = validate_customer_from_document_data(
-            document_data, account_type
-        )
-        pii_report = get_pii_report(document_data)
+        log = logger.bind(pipeline=True)
+        log.info("pipeline_started", filename=filename, account_type=account_type)
 
-        record = process_and_save_customer(document_data, validation_result)
+        with pipeline_span("onboarding-pipeline", account_type=account_type):
+            document_data = extract_document_data(tmp_path, callbacks=[handler])
+            validation_result = validate_customer_from_document_data(
+                document_data, account_type, callbacks=[handler],
+            )
+            pii_report = get_pii_report(document_data)
+            record = process_and_save_customer(document_data, validation_result)
+
+        log.info(
+            "pipeline_completed",
+            status=validation_result["status"],
+            customer_name=validation_result["customer_name"],
+        )
 
         return {
             "extraction": document_data,
@@ -80,32 +134,16 @@ def _run_pipeline(image_bytes: bytes, filename: str, account_type: str) -> dict:
 
 @app.get("/api/v1/health")
 async def health() -> dict:
-    """Health check endpoint."""
     return {"status": "ok", "service": "multi-agent-onboarding"}
 
 
 @app.post("/api/v1/validate")
+@limiter.limit(os.getenv("RATE_LIMIT_VALIDATE", "10/minute"))
 async def validate(
+    request: Request,
     file: UploadFile = File(...),
     account_type: str = Form(...),
 ) -> dict:
-    """
-    Upload dan validasi dokumen identitas nasabah.
-
-    Menerima file gambar (KTP/Paspor) dan jenis akun, menjalankan
-    pipeline 3 agent: Document Extractor -> Policy Validator -> PII Guardian.
-
-    Args:
-        file: File gambar dokumen (jpg, jpeg, png, webp)
-        account_type: Jenis akun (Stocks, ETF, Futures, Options, Margin, Forex, Crypto)
-
-    Returns:
-        dict: Hasil extraction, validation, PII report, dan saved record
-
-    Raises:
-        HTTPException 400: Jika input tidak valid
-        HTTPException 500: Jika pipeline error
-    """
     if account_type not in ACCOUNT_TYPES:
         raise HTTPException(
             status_code=400,
@@ -133,14 +171,19 @@ async def validate(
 
 
 @app.get("/api/v1/customers")
-async def list_customers():
-    """Daftar semua customer yang tersimpan."""
+@limiter.limit(os.getenv("RATE_LIMIT_READ", "30/minute"))
+async def list_customers(request: Request):
     db = Database()
     return JSONResponse(content=db.get_customers())
 
 
 @app.get("/api/v1/audit-logs")
-async def list_audit_logs():
-    """Daftar semua audit log entries."""
+@limiter.limit(os.getenv("RATE_LIMIT_READ", "30/minute"))
+async def list_audit_logs(request: Request):
     db = Database()
     return JSONResponse(content=db.get_audit_logs())
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    shutdown_tracing()

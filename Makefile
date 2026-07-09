@@ -1,7 +1,11 @@
-.PHONY: install test run api docker-build docker-up lint clean
+.PHONY: install test run api docker-build docker-up lint clean precommit
 
 install:
 	pip install -r requirements.txt
+
+install-dev: install
+	pip install pre-commit ruff mypy
+	pre-commit install
 
 test:
 	python -m pytest tests/ -v -m "not integration" --tb=short
