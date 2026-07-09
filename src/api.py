@@ -21,7 +21,7 @@ from slowapi.middleware import SlowAPIASGIMiddleware
 from slowapi.util import get_remote_address
 
 from src.logging_config import setup_logging, get_request_id
-from src.langfuse_tracing import init_tracing, get_handler, flush_traces, shutdown_tracing, pipeline_span
+from src.langfuse_tracing import init_tracing, shutdown_tracing, pipeline_span
 
 load_dotenv()
 
@@ -29,11 +29,11 @@ if not os.getenv("GOOGLE_API_KEY"):
     raise RuntimeError("GOOGLE_API_KEY tidak ditemukan di .env")
 
 init_tracing()
-handler = get_handler()
 
 from src.agent import extract_document_data
 from src.policy_validator import validate_customer_from_document_data
 from src.pii_guardian import get_pii_report, process_and_save_customer
+from src.schemas import make_routing_decision, RoutingDecision
 from src.database import Database
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
@@ -85,7 +85,12 @@ async def log_requests(request: Request, call_next: Any) -> JSONResponse:
             status_code=response.status_code,
         )
     except Exception as exc:
-        log.error("request_failed", method=request.method, path=request.url.path, error=str(exc))
+        log.error(
+            "request_failed",
+            method=request.method,
+            path=request.url.path,
+            error=str(exc),
+        )
         raise
 
     response.headers["X-Request-ID"] = request_id
@@ -108,10 +113,20 @@ def _run_pipeline(image_bytes: bytes, filename: str, account_type: str) -> dict:
         log = logger.bind(pipeline=True)
         log.info("pipeline_started", filename=filename, account_type=account_type)
 
-        with pipeline_span("onboarding-pipeline", account_type=account_type):
+        with pipeline_span("onboarding-pipeline", account_type=account_type) as handler:
             document_data = extract_document_data(tmp_path, callbacks=[handler])
+
+            decision = make_routing_decision(document_data.get("confidence", 0.0))
+            if decision == RoutingDecision.REJECTED:
+                raise ValueError(
+                    f"Kualitas dokumen terlalu rendah (confidence: {document_data['confidence']:.1%}). "
+                    f"Silakan upload foto yang lebih jelas."
+                )
+
             validation_result = validate_customer_from_document_data(
-                document_data, account_type, callbacks=[handler],
+                document_data,
+                account_type,
+                callbacks=[handler],
             )
             pii_report = get_pii_report(document_data)
             record = process_and_save_customer(document_data, validation_result)
@@ -122,12 +137,21 @@ def _run_pipeline(image_bytes: bytes, filename: str, account_type: str) -> dict:
             customer_name=validation_result["customer_name"],
         )
 
-        return {
+        result = {
             "extraction": document_data,
             "validation": validation_result,
             "pii_report": pii_report,
             "saved_record": record,
         }
+
+        if decision == RoutingDecision.PENDING_REVIEW:
+            result["review_required"] = True
+            result["review_reason"] = (
+                f"Confidence score {document_data['confidence']:.1%} memerlukan review manual. "
+                f"Dokumen diproses dengan kewaspadaan tinggi."
+            )
+
+        return result
     finally:
         Path(tmp_path).unlink(missing_ok=True)
 
