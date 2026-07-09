@@ -72,6 +72,18 @@ fastapi, uvicorn, python-multipart
 pytest
 ```
 
+## Langfuse Tracing
+
+LLM observability via Langfuse Cloud (free tier: 50K traces/month, https://cloud.langfuse.com).
+
+| Env Var | Description |
+|---|---|
+| `LANGFUSE_SECRET_KEY` | Secret key from cloud.langfuse.com |
+| `LANGFUSE_PUBLIC_KEY` | Public key from cloud.langfuse.com |
+| `LANGFUSE_BASE_URL` | `https://cloud.langfuse.com` (or self-hosted URL) |
+
+Data flow: `init_tracing()` at entry point → `CallbackHandler` passed as `config` to each `agent.invoke()` → pipeline steps grouped under one trace via `pipeline_span()` context manager → `flush_traces()` before CLI exit. Agents produce 3 separate spans under 1 trace per pipeline session.
+
 ## Config
 
 `.env` must contain `GOOGLE_API_KEY` and `HUGGINGFACEHUB_API_TOKEN`. `.env` is gitignored; copy from `.env.example`.

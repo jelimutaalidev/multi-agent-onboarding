@@ -21,11 +21,15 @@ from slowapi.middleware import SlowAPIASGIMiddleware
 from slowapi.util import get_remote_address
 
 from src.logging_config import setup_logging, get_request_id
+from src.langfuse_tracing import init_tracing, get_handler, flush_traces, shutdown_tracing, pipeline_span
 
 load_dotenv()
 
 if not os.getenv("GOOGLE_API_KEY"):
     raise RuntimeError("GOOGLE_API_KEY tidak ditemukan di .env")
+
+init_tracing()
+handler = get_handler()
 
 from src.agent import extract_document_data
 from src.policy_validator import validate_customer_from_document_data
@@ -104,12 +108,13 @@ def _run_pipeline(image_bytes: bytes, filename: str, account_type: str) -> dict:
         log = logger.bind(pipeline=True)
         log.info("pipeline_started", filename=filename, account_type=account_type)
 
-        document_data = extract_document_data(tmp_path)
-        validation_result = validate_customer_from_document_data(
-            document_data, account_type
-        )
-        pii_report = get_pii_report(document_data)
-        record = process_and_save_customer(document_data, validation_result)
+        with pipeline_span("onboarding-pipeline", account_type=account_type):
+            document_data = extract_document_data(tmp_path, callbacks=[handler])
+            validation_result = validate_customer_from_document_data(
+                document_data, account_type, callbacks=[handler],
+            )
+            pii_report = get_pii_report(document_data)
+            record = process_and_save_customer(document_data, validation_result)
 
         log.info(
             "pipeline_completed",
@@ -177,3 +182,8 @@ async def list_customers(request: Request):
 async def list_audit_logs(request: Request):
     db = Database()
     return JSONResponse(content=db.get_audit_logs())
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    shutdown_tracing()

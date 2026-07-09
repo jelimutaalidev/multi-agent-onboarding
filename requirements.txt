@@ -33,3 +33,6 @@ python-multipart>=0.0.9
 # Production hardening
 structlog>=25.0.0
 slowapi>=0.1.9
+
+# LLM Observability
+langfuse>=4.0.0

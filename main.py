@@ -25,6 +25,11 @@ if not os.getenv("GOOGLE_API_KEY"):
     print("   Contoh: GOOGLE_API_KEY=your-api-key-here")
     sys.exit(1)
 
+from src.langfuse_tracing import init_tracing, get_handler, flush_traces
+
+init_tracing()
+handler = get_handler()
+
 from src.agent import extract_document_data
 
 
@@ -61,7 +66,7 @@ def main():
     
     try:
         # Extract document data
-        result = extract_document_data(image_path)
+        result = extract_document_data(image_path, callbacks=[handler])
         
         # Display results
         print("[OK] Ekstraksi berhasil!\n")
@@ -114,3 +119,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    flush_traces()
