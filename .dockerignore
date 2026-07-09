@@ -1,0 +1,16 @@
+.env
+__pycache__/
+*.py[cod]
+*$py.class
+.git
+.gitignore
+.pytest_cache/
+.pytest_cache
+data/chroma_db/
+data/db/*.db
+test_images/
+venv/
+env/
+.idea/
+.vscode/
+*.md

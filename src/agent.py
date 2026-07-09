@@ -100,7 +100,7 @@ def create_document_extractor_agent() -> Any:
         Agent: LangChain agent dengan structured output
     """
     agent = create_agent(
-        model="google_genai:gemini-2.5-flash",  # Vision-capable model
+        model="google_genai:gemini-2.5-flash-lite",  # Vision-capable model
         tools=[],  # No tools needed - direct extraction
         system_prompt=SYSTEM_PROMPT,
         response_format=DocumentData,  # Structured output using Pydantic
