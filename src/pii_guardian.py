@@ -13,8 +13,6 @@ import hashlib
 from enum import Enum
 from datetime import datetime
 from typing import Optional, Dict, Any, List
-from dataclasses import dataclass, field, asdict
-from pathlib import Path
 
 from pydantic import BaseModel, Field
 
@@ -259,117 +257,12 @@ def mask_document_data(document_data: Dict[str, Any]) -> Dict[str, Any]:
     return result.masked_data
 
 
-# ========== DATABASE SIMULATION ==========
+# ========== DATABASE ==========
 
-class SimulatedDatabase:
-    """
-    Database simulasi untuk menyimpan data nasabah.
-    
-    Semua data yang masuk akan di-mask sebelum disimpan.
-    """
-    
-    def __init__(self, db_path: Optional[Path] = None):
-        """Initialize database simulasi."""
-        if db_path is None:
-            db_path = Path(__file__).parent.parent / "data" / "db"
-        
-        self.db_path = db_path
-        self.db_path.mkdir(parents=True, exist_ok=True)
-        self.customers_file = self.db_path / "customers.json"
-        self.audit_log_file = self.db_path / "audit_log.json"
-        
-        # Initialize files if not exist
-        if not self.customers_file.exists():
-            self._write_json(self.customers_file, {"customers": []})
-        if not self.audit_log_file.exists():
-            self._write_json(self.audit_log_file, {"logs": []})
-    
-    def _read_json(self, path: Path) -> dict:
-        """Read JSON file."""
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    
-    def _write_json(self, path: Path, data: dict):
-        """Write JSON file."""
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-    
-    def save_customer(
-        self,
-        document_data: Dict[str, Any],
-        validation_result: Dict[str, Any],
-        mask_pii: bool = True
-    ) -> Dict[str, Any]:
-        """
-        Simpan data nasabah ke database.
-        
-        Data akan otomatis di-mask jika mask_pii=True.
-        
-        Args:
-            document_data: Data dari Document Extractor
-            validation_result: Hasil dari Policy Validator
-            mask_pii: Apakah data PII harus di-mask
-            
-        Returns:
-            dict: Record yang disimpan (sudah di-mask)
-        """
-        # Mask data jika diperlukan
-        if mask_pii:
-            masked_result = mask_dict(document_data)
-            safe_document_data = masked_result.masked_data
-            pii_detections = [d.model_dump() for d in masked_result.pii_detections]
-        else:
-            safe_document_data = document_data
-            pii_detections = []
-        
-        # Create customer record
-        customer_id = f"CUST-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        record = {
-            "customer_id": customer_id,
-            "document_data": safe_document_data,
-            "validation_status": validation_result.get("status"),
-            "account_type": validation_result.get("account_type"),
-            "created_at": datetime.now().isoformat(),
-            "pii_masked": mask_pii,
-            "pii_fields_count": len(pii_detections)
-        }
-        
-        # Save to customers file
-        db = self._read_json(self.customers_file)
-        db["customers"].append(record)
-        self._write_json(self.customers_file, db)
-        
-        # Log audit
-        self._log_audit(
-            action="CUSTOMER_SAVED",
-            customer_id=customer_id,
-            pii_masked=mask_pii,
-            pii_detections_count=len(pii_detections)
-        )
-        
-        return record
-    
-    def _log_audit(self, action: str, **kwargs):
-        """Log aksi ke audit log."""
-        log_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "action": action,
-            **kwargs
-        }
-        
-        audit = self._read_json(self.audit_log_file)
-        audit["logs"].append(log_entry)
-        self._write_json(self.audit_log_file, audit)
-    
-    def get_customers(self) -> List[Dict]:
-        """Get semua customer records."""
-        db = self._read_json(self.customers_file)
-        return db["customers"]
-    
-    def get_audit_logs(self) -> List[Dict]:
-        """Get semua audit logs."""
-        audit = self._read_json(self.audit_log_file)
-        return audit["logs"]
+from .database import Database
+
+# Legacy JSON-backed implementation removed in favor of SQLite.
+# Replaced by Database class from database.py.
 
 
 # ========== PII GUARDIAN AGENT ==========
@@ -442,10 +335,16 @@ def create_pii_guardian():
         try:
             doc_data = json.loads(document_data_json)
             val_result = json.loads(validation_result_json)
-            
-            db = SimulatedDatabase()
-            record = db.save_customer(doc_data, val_result, mask_pii=True)
-            
+
+            masked_result = mask_dict(doc_data)
+            db = Database()
+            record = db.save_customer(
+                masked_result.masked_data,
+                val_result,
+                pii_masked=True,
+                pii_fields_count=len(masked_result.pii_detections),
+            )
+
             return f"Data berhasil disimpan dengan ID: {record['customer_id']}. PII telah di-mask."
         except Exception as e:
             return f"Gagal menyimpan: {str(e)}"
@@ -516,8 +415,14 @@ def process_and_save_customer(
     Returns:
         dict: Record yang disimpan
     """
-    db = SimulatedDatabase()
-    return db.save_customer(document_data, validation_result, mask_pii=True)
+    masked_result = mask_dict(document_data)
+    db = Database()
+    return db.save_customer(
+        masked_result.masked_data,
+        validation_result,
+        pii_masked=True,
+        pii_fields_count=len(masked_result.pii_detections),
+    )
 
 
 def get_pii_report(document_data: Dict[str, Any]) -> Dict[str, Any]:

@@ -39,3 +39,13 @@ ENV/
 
 # Logs
 *.log
+
+# Database files (runtime data, not source)
+*.db
+# chroma/chroma_db/
+
+# ChromaDB persistent store (runtime data)
+data/chroma_db/
+
+# Test cache
+.pytest_cache/

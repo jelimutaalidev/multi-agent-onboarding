@@ -9,6 +9,8 @@ import base64
 from pathlib import Path
 from typing import Union
 
+from typing import Any
+
 from langchain.agents import create_agent
 from langchain.messages import HumanMessage
 
@@ -87,7 +89,7 @@ def get_image_mime_type(image_path: Union[str, Path]) -> str:
     return mime_types.get(suffix, "image/jpeg")
 
 
-def create_document_extractor_agent():
+def create_document_extractor_agent() -> Any:
     """
     Buat Document Extractor Agent dengan Vision capability.
     

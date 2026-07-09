@@ -11,32 +11,36 @@ from typing import List, Optional
 
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_core.vectorstores import InMemoryVectorStore
+from langchain_huggingface import HuggingFaceEndpointEmbeddings
+from langchain_chroma import Chroma
 from langchain_core.documents import Document
+from langchain_core.vectorstores import VectorStoreRetriever
 
 
-# Path ke folder policies
+# Paths
 POLICIES_DIR = Path(__file__).parent.parent / "data" / "policies"
+CHROMA_PATH = Path(__file__).parent.parent / "data" / "chroma_db"
+COLLECTION_NAME = "compliance_policies"
 
 # Global vector store instance (singleton pattern)
-_vector_store: Optional[InMemoryVectorStore] = None
-_embeddings: Optional[HuggingFaceEmbeddings] = None
+_vector_store: Optional[Chroma] = None
+_embeddings: Optional[HuggingFaceEndpointEmbeddings] = None
 
 
-def get_embeddings() -> HuggingFaceEmbeddings:
+def get_embeddings() -> HuggingFaceEndpointEmbeddings:
     """
-    Get or create HuggingFace embeddings model.
+    Get or create HuggingFace embeddings via remote Inference API.
     
-    Uses sentence-transformers/all-MiniLM-L6-v2 for efficient embeddings.
+    Uses sentence-transformers/all-MiniLM-L6-v2 via HF Inference API.
+    No local model download required — HUGGINGFACEHUB_API_TOKEN from .env.
     """
     global _embeddings
     
     if _embeddings is None:
-        _embeddings = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2",
-            model_kwargs={"device": "cpu"},
-            encode_kwargs={"normalize_embeddings": True}
+        os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+        _embeddings = HuggingFaceEndpointEmbeddings(
+            model="sentence-transformers/all-MiniLM-L6-v2",
+            task="feature-extraction",
         )
     
     return _embeddings
@@ -87,38 +91,61 @@ def split_documents(documents: List[Document]) -> List[Document]:
     return splits
 
 
-def initialize_vector_store(force_reload: bool = False) -> InMemoryVectorStore:
+def initialize_vector_store(force_reload: bool = False) -> Chroma:
     """
-    Initialize vector store dengan dokumen kebijakan.
+    Initialize persistent Chroma vector store.
+    
+    Data disimpan di data/chroma_db/ dan load otomatis saat restart.
     
     Args:
-        force_reload: Jika True, reload dokumen meskipun sudah ada
+        force_reload: Jika True, hapus collection dan re-index ulang
         
     Returns:
-        InMemoryVectorStore: Initialized vector store
+        Chroma: Persistent vector store
     """
     global _vector_store
     
     if _vector_store is not None and not force_reload:
         return _vector_store
     
-    # Load dan split documents
+    # Hapus collection lama jika force_reload
+    if force_reload:
+        import shutil
+        if CHROMA_PATH.exists():
+            shutil.rmtree(CHROMA_PATH)
+            print("[RAG] Menghapus ChromaDB cache (force reload)")
+    
+    embeddings = get_embeddings()
+    CHROMA_PATH.mkdir(parents=True, exist_ok=True)
+    
+    # Jika sudah ada data persistent, load dari disk (tidak re-embed)
+    if not force_reload and any(CHROMA_PATH.iterdir()):
+        _vector_store = Chroma(
+            collection_name=COLLECTION_NAME,
+            embedding_function=embeddings,
+            persist_directory=str(CHROMA_PATH),
+        )
+        count = _vector_store._collection.count()
+        print(f"[RAG] Loaded {count} chunks from persistent store")
+        return _vector_store
+    
+    # Index dari awal
     documents = load_policy_documents()
     splits = split_documents(documents)
     
-    # Create embeddings dan vector store
-    embeddings = get_embeddings()
-    _vector_store = InMemoryVectorStore.from_documents(
+    _vector_store = Chroma.from_documents(
         documents=splits,
-        embedding=embeddings
+        embedding=embeddings,
+        collection_name=COLLECTION_NAME,
+        persist_directory=str(CHROMA_PATH),
     )
     
-    print(f"[RAG] Indexed {len(splits)} document chunks")
+    print(f"[RAG] Indexed {len(splits)} document chunks to persistent store")
     
     return _vector_store
 
 
-def get_policy_retriever(k: int = 4):
+def get_policy_retriever(k: int = 4) -> "VectorStoreRetriever":
     """
     Get retriever untuk search policy documents.
     
@@ -148,7 +175,7 @@ def search_policies(query: str, k: int = 4) -> List[Document]:
     return results
 
 
-def search_policies_with_score(query: str, k: int = 4) -> List[tuple]:
+def search_policies_with_score(query: str, k: int = 4) -> List[tuple[Document, float]]:
     """
     Search policy documents dan return dengan similarity score.
     
