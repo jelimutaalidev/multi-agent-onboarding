@@ -32,6 +32,7 @@ make docker-up
 # single file
 python -m pytest tests/test_api.py -v
 python -m pytest tests/test_policy_validator.py -v
+python -m pytest tests/test_graph.py -v
 ```
 
 Account types (CLI `-a` / `--account-type`): `Stocks`, `ETF`, `Futures`, `Options`, `Margin`, `Forex`, `Crypto`
@@ -40,15 +41,24 @@ Account types (CLI `-a` / `--account-type`): `Stocks`, `ETF`, `Futures`, `Option
 
 ## Architecture
 
-3 sequential LangChain agents, each calling `create_agent()` from `langchain.agents`:
+LangGraph `StateGraph` pipeline orchestrated via `src/graph.py`. Nodes are wrapped as LangGraph nodes; the graph handles sequential execution, conditional routing, and tracing automatically.
 
-| Agent | File | Model | Tools |
-|---|---|---|---|
-| Document Extractor | `src/agent.py` | `gemini-2.5-flash-lite` | — (Vision-only, no tools) |
-| Policy Validator | `src/policy_validator.py` | `gemini-2.5-flash` | `calculate_age`, `check_document_validity`, `search_policy_documents`, `get_minimum_age_for_account` |
-| PII Guardian | `src/pii_guardian.py` | `gemini-2.5-flash-lite` | `mask_sensitive_data`, `detect_pii_in_text`, `save_to_secure_database` |
+```
+START → extract_document → [confidence ≥ 0.7?] → validate_policy → mask_pii → save_customer → generate_report → END
+                              ↓ (rejected)
+                          generate_report → END
+```
 
-Data flow: `main.py` → agent only; `validate.py` → agent → policy → pii
+| Node | Type | File | Model | Tools |
+|---|---|---|---|---|
+| `extract_document` | LLM Agent | `src/agent.py` | `gemini-2.5-flash-lite` | — (Vision-only) |
+| `validate_policy` | LLM Agent | `src/policy_validator.py` | `gemini-3.1-flash-lite` | `calculate_age`, `check_document_validity`, `search_policy_documents`, `get_minimum_age_for_account` |
+| `mask_pii` | Pure function | `src/pii_guardian.py` | — (no LLM) | — |
+| `save_customer` | Pure function | `src/pii_guardian.py` | — (no LLM) | — |
+
+PII Guardian is **not an agent** — `mask_dict()` is a deterministic pure function called directly from the graph node. The `create_pii_guardian()` agent factory was removed (dead code — tools were never invoked in the pipeline).
+
+Entry points use `run_pipeline(image_path, account_type, callbacks)` from `src/graph.py`. The graph uses a `ContextVar` to pass Langfuse callbacks through nodes without contaminating serializable state.
 
 ### FastAPI
 
@@ -72,7 +82,7 @@ API features: `structlog` (JSON in prod, human-readable in dev), `slowapi` rate 
 - RAG store (`src/rag_store.py`): ChromaDB persistent at `data/chroma_db/`. Auto-loads from disk on restart; pass `force_reload=True` to re-index from scratch.
 - Embeddings: `HuggingFaceEndpointEmbeddings` via HF Inference API (remote, no local model). Requires `HUGGINGFACEHUB_API_TOKEN` in `.env`.
 - Database (`src/database.py`): SQLite via SQLAlchemy at `data/db/onboarding.db`. `Database()` creates tables on init if missing. Not yet production-tested for concurrency.
-- PII Guardian (`src/pii_guardian.py`): `mask_dict()` called *before* `Database.save_customer()`. Database receives pre-masked data.
+- PII Guardian (`src/pii_guardian.py`): `mask_dict()` is a pure function called from the LangGraph `mask_pii` node, *before* `Database.save_customer()`. Database receives pre-masked data. `create_pii_guardian()` was removed — it was dead code (its tools were never invoked in the pipeline).
 - Indonesian-language prompts and output throughout.
 - `sys.stdout.reconfigure(encoding='utf-8')` in `main.py`, `validate.py`, AND `api.py` (entry points only).
 - Policy validator tests use `.func()` to unwrap `@tool` decorators (e.g., `calculate_age.func`).
@@ -82,6 +92,8 @@ API features: `structlog` (JSON in prod, human-readable in dev), `slowapi` rate 
 ## Langfuse Tracing
 
 `init_tracing()` → `with pipeline_span(name, **tags) as handler:` wraps multi-agent pipeline → `handler` created inside span context so all `agent.invoke(config={"callbacks": [handler]})` calls nest under one trace → `flush_traces()` before CLI exit. For single-agent scripts, `get_handler()` returns a fresh handler (creates its own trace). On API server, `shutdown_tracing()` on app shutdown.
+
+Inside LangGraph nodes, callbacks flow through a `ContextVar` (`_callbacks_var`) set by `run_pipeline()` before `graph.invoke()`. Pure function nodes (`mask_pii`, `save_customer`) don't consume LLM callbacks but still appear in LangSmith traces via LangGraph's native `RunnableLambda` wrapping.
 
 | Env Var | Description |
 |---|---|

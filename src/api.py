@@ -30,9 +30,7 @@ if not os.getenv("GOOGLE_API_KEY"):
 
 init_tracing()
 
-from src.agent import extract_document_data
-from src.policy_validator import validate_customer_from_document_data
-from src.pii_guardian import get_pii_report, process_and_save_customer
+from src.graph import run_pipeline
 from src.schemas import make_routing_decision, RoutingDecision, ReviewRequest
 from src.database import Database
 
@@ -114,42 +112,29 @@ def _run_pipeline(image_bytes: bytes, filename: str, account_type: str) -> dict:
         log.info("pipeline_started", filename=filename, account_type=account_type)
 
         with pipeline_span("onboarding-pipeline", account_type=account_type) as handler:
-            document_data = extract_document_data(tmp_path, callbacks=[handler])
+            report = run_pipeline(tmp_path, account_type, callbacks=[handler])
 
-            decision = make_routing_decision(document_data.get("confidence", 0.0))
-            if decision == RoutingDecision.REJECTED:
-                raise ValueError(
-                    f"Kualitas dokumen terlalu rendah (confidence: {document_data['confidence']:.1%}). "
-                    f"Silakan upload foto yang lebih jelas."
-                )
+        if report.get("error"):
+            raise ValueError(report["error"])
 
-            validation_result = validate_customer_from_document_data(
-                document_data,
-                account_type,
-                callbacks=[handler],
-            )
-            pii_report = get_pii_report(document_data)
-            record = process_and_save_customer(document_data, validation_result)
+        extraction = report.get("extraction") or {}
+        validation = report.get("validation") or {}
 
         log.info(
             "pipeline_completed",
-            status=validation_result["status"],
-            customer_name=validation_result["customer_name"],
+            status=validation.get("status", "UNKNOWN"),
+            customer_name=validation.get("customer_name", "UNKNOWN"),
         )
 
-        result = {
-            "extraction": document_data,
-            "validation": validation_result,
-            "pii_report": pii_report,
-            "saved_record": record,
-        }
+        decision = make_routing_decision(extraction.get("confidence", 0.0))
+        result = report
 
         if decision == RoutingDecision.PENDING_REVIEW:
             review = ReviewRequest(
-                customer_name=document_data.get("nama", "UNKNOWN"),
-                confidence=document_data["confidence"],
-                reason=f"Kualitas dokumen perlu diperiksa (confidence: {document_data['confidence']:.1%})",
-                document_data=document_data,
+                customer_name=extraction.get("nama", "UNKNOWN"),
+                confidence=extraction["confidence"],
+                reason=f"Kualitas dokumen perlu diperiksa (confidence: {extraction['confidence']:.1%})",
+                document_data=extraction,
             )
             result["review_request"] = review.model_dump()
 

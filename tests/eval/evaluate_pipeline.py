@@ -17,13 +17,13 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.policy_validator import (
+from src.policy_validator import (  # noqa: E402
     calculate_age,
     check_document_validity,
     get_minimum_age_for_account,
 )
-from src.pii_guardian import mask_dict
-from src.schemas import make_routing_decision
+from src.pii_guardian import mask_dict  # noqa: E402
+from src.schemas import make_routing_decision  # noqa: E402
 
 TEST_CASES_FILE = Path(__file__).parent / "test_cases.json"
 

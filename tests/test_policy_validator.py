@@ -64,6 +64,7 @@ class TestCheckDocumentValidity:
 
     def test_expiring_soon(self):
         from datetime import timedelta
+
         soon = (date.today() + timedelta(days=15)).strftime("%d-%m-%Y")
         result = check_document_validity_fn(soon)
         assert result["is_valid"] is True
@@ -71,6 +72,7 @@ class TestCheckDocumentValidity:
 
     def test_recently_expired(self):
         from datetime import timedelta
+
         recent = (date.today() - timedelta(days=15)).strftime("%d-%m-%Y")
         result = check_document_validity_fn(recent)
         assert result["is_valid"] is False

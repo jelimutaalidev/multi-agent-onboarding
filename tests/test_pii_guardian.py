@@ -1,4 +1,3 @@
-import pytest
 
 from src.pii_guardian import (
     detect_pii,
@@ -54,11 +53,15 @@ class TestMaskText:
         assert "3201xxxx7890xxxx" in masked or "xxxx-xxxx-xxxx-0001" in masked
 
     def test_mask_redact_strategy(self):
-        masked, detections = mask_text("Email user@test.com", strategy=MaskingStrategy.REDACT)
+        masked, detections = mask_text(
+            "Email user@test.com", strategy=MaskingStrategy.REDACT
+        )
         assert "[REDACTED_EMAIL]" in masked
 
     def test_mask_hash_strategy(self):
-        masked, detections = mask_text("3201234567890001", strategy=MaskingStrategy.HASH)
+        masked, detections = mask_text(
+            "3201234567890001", strategy=MaskingStrategy.HASH
+        )
         assert "[HASH:" in masked
 
     def test_mask_multiple_pii(self):
@@ -79,7 +82,11 @@ class TestMaskDict:
         assert "[REDACTED]" in result.masked_data["alamat"]
 
     def test_non_sensitive_field_unchanged(self):
-        data = {"nama": "BUDI SANTOSO", "jenis_kelamin": "LAKI-LAKI", "confidence": 0.95}
+        data = {
+            "nama": "BUDI SANTOSO",
+            "jenis_kelamin": "LAKI-LAKI",
+            "confidence": 0.95,
+        }
         result = mask_dict(data)
         assert result.masked_data["jenis_kelamin"] == "LAKI-LAKI"
         assert result.masked_data["confidence"] == 0.95
@@ -122,7 +129,11 @@ class TestMaskDict:
 
 class TestGetPIIReport:
     def test_report_structure(self):
-        data = {"nik": "3201234567890001", "nama": "BUDI SANTOSO", "alamat": "JL. MERDEKA"}
+        data = {
+            "nik": "3201234567890001",
+            "nama": "BUDI SANTOSO",
+            "alamat": "JL. MERDEKA",
+        }
         report = get_pii_report(data)
         assert report["total_pii_found"] >= 3
         assert "nik" in report["pii_types"]
@@ -135,8 +146,10 @@ class TestGetPIIReport:
 class TestProcessAndSaveCustomer:
     def test_saves_with_masking(self, temp_db_path):
         from src.pii_guardian import process_and_save_customer
+
         db = Database(db_path=temp_db_path)
         import src.pii_guardian as pg
+
         original = pg.Database
         pg.Database = lambda db_path=None: db
         try:

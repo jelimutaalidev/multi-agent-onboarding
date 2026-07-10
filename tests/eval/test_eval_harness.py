@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-import pytest
+from .evaluate_pipeline import evaluate_test_case
 
 
 def load_cases():
@@ -39,9 +39,6 @@ class TestTestCaseStructure:
         cases = load_cases()
         ids = [c["id"] for c in cases]
         assert len(ids) == len(set(ids)), f"Duplicate IDs: {[id for id in ids if ids.count(id) > 1]}"
-
-
-from .evaluate_pipeline import evaluate_test_case
 
 
 class TestEvalPipeline:

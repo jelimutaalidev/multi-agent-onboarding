@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from src.database import Database, Customer, AuditLogEntry, Base
+from src.database import Database
 
 
 @pytest.fixture
@@ -38,8 +38,12 @@ class TestDatabase:
         assert customers == []
 
     def test_get_customers_multiple(self, db: Database):
-        db.save_customer({"nama": "A"}, {"status": "APPROVED", "account_type": "Stocks"})
-        db.save_customer({"nama": "B"}, {"status": "REJECTED", "account_type": "Crypto"})
+        db.save_customer(
+            {"nama": "A"}, {"status": "APPROVED", "account_type": "Stocks"}
+        )
+        db.save_customer(
+            {"nama": "B"}, {"status": "REJECTED", "account_type": "Crypto"}
+        )
 
         customers = db.get_customers()
         assert len(customers) == 2
@@ -56,14 +60,22 @@ class TestDatabase:
         assert logs[0]["action"] == "CUSTOMER_SAVED"
 
     def test_audit_log_multiple_entries(self, db: Database):
-        db.save_customer({"nama": "A"}, {"status": "APPROVED", "account_type": "Stocks"})
-        db.save_customer({"nama": "B"}, {"status": "REJECTED", "account_type": "Crypto"})
+        db.save_customer(
+            {"nama": "A"}, {"status": "APPROVED", "account_type": "Stocks"}
+        )
+        db.save_customer(
+            {"nama": "B"}, {"status": "REJECTED", "account_type": "Crypto"}
+        )
 
         logs = db.get_audit_logs()
         assert len(logs) == 2
 
     def test_document_data_persisted(self, db: Database):
-        doc = {"nama": "BUDI SANTOSO", "nik": "3201234567890001", "alamat": "JL. MERDEKA"}
+        doc = {
+            "nama": "BUDI SANTOSO",
+            "nik": "3201234567890001",
+            "alamat": "JL. MERDEKA",
+        }
         db.save_customer(doc, {"status": "APPROVED", "account_type": "Futures"})
 
         customers = db.get_customers()
@@ -72,7 +84,9 @@ class TestDatabase:
 
     def test_multiple_db_instances_same_file(self, temp_db_path: Path):
         db1 = Database(db_path=temp_db_path)
-        db1.save_customer({"nama": "A"}, {"status": "APPROVED", "account_type": "Stocks"})
+        db1.save_customer(
+            {"nama": "A"}, {"status": "APPROVED", "account_type": "Stocks"}
+        )
 
         db2 = Database(db_path=temp_db_path)
         customers = db2.get_customers()
