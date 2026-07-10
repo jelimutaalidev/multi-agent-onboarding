@@ -407,6 +407,53 @@ python validate.py test_images/sample_ktp.png -a Crypto --save --show-pii-report
 
 ---
 
+## 📊 Performance Metrics
+
+### Dashboard
+
+Access the Langfuse observability dashboard for real-time metrics:
+
+```bash
+# Start API server with tracing
+python api.py
+
+# Open dashboard at https://cloud.langfuse.com
+# Or configure self-hosted: set LANGFUSE_BASE_URL in .env
+```
+
+### CLI Benchmark
+
+Run performance benchmarks from the command line:
+
+```bash
+# Run full benchmark suite
+python benchmarks/run_benchmark.py
+
+# Generate benchmark report
+python benchmarks/run_benchmark.py --output benchmark_report.json
+
+# Export to CSV
+python benchmarks/run_benchmark.py --format csv
+```
+
+### API Metrics Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/health` | GET | System health status |
+| `/api/v1/metrics` | GET | Pipeline performance metrics |
+| `/api/v1/metrics/latency` | GET | Latency breakdown by agent |
+| `/api/v1/metrics/throughput` | GET | Request throughput statistics |
+
+### Benchmark Reports
+
+Generated reports are saved to `benchmarks/reports/`:
+
+- `benchmark_report_<timestamp>.json` - Full JSON report
+- `benchmark_report_<timestamp>.csv` - CSV summary for analysis
+
+---
+
 ## 🔧 Configuration
 
 ### Model Configuration
