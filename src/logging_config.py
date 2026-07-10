@@ -15,36 +15,10 @@ def setup_logging(environment: str = "development") -> None:
     Integrates with standard logging so third-party libraries also produce
     structured output.
     """
-    timestamper = structlog.processors.TimeStamper(fmt="iso")
-
-    shared_processors: list[Any] = [
-        structlog.stdlib.add_log_level,
-        structlog.stdlib.PositionalArgumentsFormatter(),
-        timestamper,
-        structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
-        structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
-    ]
-
     if environment == "production":
-        renderer = structlog.processors.JSONRenderer()
+        renderer: Any = structlog.processors.JSONRenderer()
     else:
         renderer = structlog.dev.ConsoleRenderer()
-
-    handler = logging.StreamHandler()
-    handler.setFormatter(
-        structlog.stdlib.ProcessorFormatter(
-            foreign_pre_chain=shared_processors,
-            processors=[
-                structlog.stdlib.ProcessorFormatter.remove_processors_meta,
-                renderer,
-            ],
-        )
-    )
-
-    root_logger = logging.getLogger()
-    root_logger.addHandler(handler)
-    root_logger.setLevel(logging.INFO if environment == "production" else logging.DEBUG)
 
     structlog.configure(
         processors=[
@@ -53,13 +27,21 @@ def setup_logging(environment: str = "development") -> None:
             structlog.processors.TimeStamper(fmt="iso"),
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
-            structlog.dev.ConsoleRenderer(),
+            renderer,
         ],
         wrapper_class=structlog.stdlib.BoundLogger,
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
+
+    # Configure standard logging to use structlog
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(message)s"))
+
+    root_logger = logging.getLogger()
+    root_logger.addHandler(handler)
+    root_logger.setLevel(logging.INFO if environment == "production" else logging.DEBUG)
 
 
 def get_request_id() -> str:
