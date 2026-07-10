@@ -12,16 +12,17 @@ from typing import Any
 
 import structlog
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, UploadFile, HTTPException, Request
+from fastapi import FastAPI, File, Form, Query, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIASGIMiddleware
 from slowapi.util import get_remote_address
 
 from src.logging_config import setup_logging, get_request_id
-from src.langfuse_tracing import init_tracing, get_handler, flush_traces, shutdown_tracing, pipeline_span
+from src.langfuse_tracing import init_tracing, shutdown_tracing, pipeline_span
 
 load_dotenv()
 
@@ -29,12 +30,11 @@ if not os.getenv("GOOGLE_API_KEY"):
     raise RuntimeError("GOOGLE_API_KEY tidak ditemukan di .env")
 
 init_tracing()
-handler = get_handler()
 
-from src.agent import extract_document_data
-from src.policy_validator import validate_customer_from_document_data
-from src.pii_guardian import get_pii_report, process_and_save_customer
+from src.graph import run_pipeline
+from src.schemas import make_routing_decision, RoutingDecision, ReviewRequest
 from src.database import Database
+from src.metrics import get_metrics_collector
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 ACCOUNT_TYPES = {"Stocks", "ETF", "Futures", "Options", "Margin", "Forex", "Crypto"}
@@ -85,7 +85,12 @@ async def log_requests(request: Request, call_next: Any) -> JSONResponse:
             status_code=response.status_code,
         )
     except Exception as exc:
-        log.error("request_failed", method=request.method, path=request.url.path, error=str(exc))
+        log.error(
+            "request_failed",
+            method=request.method,
+            path=request.url.path,
+            error=str(exc),
+        )
         raise
 
     response.headers["X-Request-ID"] = request_id
@@ -108,26 +113,34 @@ def _run_pipeline(image_bytes: bytes, filename: str, account_type: str) -> dict:
         log = logger.bind(pipeline=True)
         log.info("pipeline_started", filename=filename, account_type=account_type)
 
-        with pipeline_span("onboarding-pipeline", account_type=account_type):
-            document_data = extract_document_data(tmp_path, callbacks=[handler])
-            validation_result = validate_customer_from_document_data(
-                document_data, account_type, callbacks=[handler],
-            )
-            pii_report = get_pii_report(document_data)
-            record = process_and_save_customer(document_data, validation_result)
+        with pipeline_span("onboarding-pipeline", account_type=account_type) as handler:
+            report = run_pipeline(tmp_path, account_type, callbacks=[handler])
+
+        if report.get("error"):
+            raise ValueError(report["error"])
+
+        extraction = report.get("extraction") or {}
+        validation = report.get("validation") or {}
 
         log.info(
             "pipeline_completed",
-            status=validation_result["status"],
-            customer_name=validation_result["customer_name"],
+            status=validation.get("status", "UNKNOWN"),
+            customer_name=validation.get("customer_name", "UNKNOWN"),
         )
 
-        return {
-            "extraction": document_data,
-            "validation": validation_result,
-            "pii_report": pii_report,
-            "saved_record": record,
-        }
+        decision = make_routing_decision(extraction.get("confidence", 0.0))
+        result = report
+
+        if decision == RoutingDecision.PENDING_REVIEW:
+            review = ReviewRequest(
+                customer_name=extraction.get("nama", "UNKNOWN"),
+                confidence=extraction["confidence"],
+                reason=f"Kualitas dokumen perlu diperiksa (confidence: {extraction['confidence']:.1%})",
+                document_data=extraction,
+            )
+            result["review_request"] = review.model_dump()
+
+        return result
     finally:
         Path(tmp_path).unlink(missing_ok=True)
 
@@ -182,6 +195,79 @@ async def list_customers(request: Request):
 async def list_audit_logs(request: Request):
     db = Database()
     return JSONResponse(content=db.get_audit_logs())
+
+
+# --- Metrics endpoints ---
+
+
+@app.get("/api/v1/metrics/summary")
+@limiter.limit(os.getenv("RATE_LIMIT_READ", "30/minute"))
+async def metrics_summary(
+    request: Request,
+    hours: int | None = Query(None, ge=1, le=8760, description="Filter by last N hours"),
+):
+    collector = get_metrics_collector()
+    summary = collector.get_summary(hours=hours)
+    return JSONResponse(content=summary.model_dump())
+
+
+@app.get("/api/v1/metrics/history")
+@limiter.limit(os.getenv("RATE_LIMIT_READ", "30/minute"))
+async def metrics_history(
+    request: Request,
+    limit: int = Query(50, ge=1, le=500, description="Max records per page"),
+    offset: int = Query(0, ge=0, description="Records to skip"),
+):
+    collector = get_metrics_collector()
+    runs = collector.get_history(limit=limit, offset=offset)
+    total = len(collector.get_all_records())
+    return JSONResponse(
+        content={
+            "runs": [r.model_dump() for r in runs],
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+    )
+
+
+@app.get("/api/v1/metrics/stages")
+@limiter.limit(os.getenv("RATE_LIMIT_READ", "30/minute"))
+async def metrics_stages(
+    request: Request,
+    hours: int | None = Query(None, ge=1, le=8760, description="Filter by last N hours"),
+):
+    collector = get_metrics_collector()
+    breakdown = collector.get_stage_breakdown(hours=hours)
+    return JSONResponse(content=[b.model_dump() for b in breakdown])
+
+
+@app.get("/api/v1/metrics/run/{run_id}")
+@limiter.limit(os.getenv("RATE_LIMIT_READ", "30/minute"))
+async def metrics_run_detail(request: Request, run_id: str):
+    collector = get_metrics_collector()
+    all_records = collector.get_all_records()
+    for record in all_records:
+        if record.run_id == run_id:
+            return JSONResponse(content=record.model_dump())
+    raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+
+
+# --- Dashboard ---
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard():
+    dashboard_path = Path(__file__).parent.parent / "dashboard" / "index.html"
+    if not dashboard_path.exists():
+        raise HTTPException(status_code=404, detail="Dashboard not found")
+    return HTMLResponse(content=dashboard_path.read_text(encoding="utf-8"))
+
+
+# Mount static files if directory exists
+_static_dir = Path(__file__).parent.parent / "dashboard"
+if _static_dir.is_dir():
+    app.mount("/static/dashboard", StaticFiles(directory=str(_static_dir)), name="dashboard-static")
 
 
 @app.on_event("shutdown")

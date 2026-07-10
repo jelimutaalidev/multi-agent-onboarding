@@ -32,7 +32,7 @@ flowchart TB
         direction TB
         A1["Agent 1: Document Extractor<br/>(Gemini Vision + LangChain)"]
         A2["Agent 2: Policy Validator<br/>(RAG + LangChain Tools)"]
-        A3["Agent 3: PII Guardian<br/>(PII Masking + Security)"]
+        A3["PII Guardian<br/>(PII Masking - Pure Function)"]
         A1 -->|extracted data| A2
         A2 -->|validation result| A3
     end
@@ -53,7 +53,6 @@ flowchart TB
     A2 --> CHROMA
     A1 --> GEMINI
     A2 --> GEMINI
-    A3 --> GEMINI
     CHROMA --> HF
 
     classDef client fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
@@ -101,7 +100,7 @@ sequenceDiagram
 |---------|-------------|------------|
 | 🔍 **Document Extraction** | Auto-extract data from ID cards (KTP, Passport) using Vision AI | Gemini 2.5 Flash |
 | 📋 **Policy Validation** | Validate customer eligibility against compliance policies using RAG | HuggingFace + LangChain |
-| 🔒 **PII Protection** | Automatic masking of sensitive data before storage | Custom + LangChain Middleware |
+| 🔒 **PII Protection** | Automatic masking of sensitive data before storage | Pure function + Regex |
 | 📊 **Structured Output** | Type-safe responses using Pydantic schemas | Pydantic v2 |
 | 🗄️ **Audit Trail** | Complete logging with data protection compliance | JSON-based simulation |
 
@@ -137,9 +136,9 @@ Validates customer eligibility against company policies using **Retrieval-Augmen
 
 ---
 
-### Agent 3: PII Guardian (Security Agent)
+### PII Guardian (Pure Function)
 
-Protects sensitive personal information before logging or storage.
+Protects sensitive personal information before logging or storage. Note: this is a deterministic pure function, not an LLM agent.
 
 **Capabilities:**
 - Detects Indonesian PII: NIK, Phone, Email, Name, Address, Birth Date
@@ -147,7 +146,7 @@ Protects sensitive personal information before logging or storage.
 - Automatic masking before database storage
 - Audit logging for compliance
 
-**Tech Stack:** `LangChain PIIMiddleware` · `Regex Patterns` · `SQLAlchemy + SQLite`
+**Tech Stack:** `Pure function` · `Regex Patterns` · `SQLAlchemy + SQLite`
 
 ---
 
@@ -342,7 +341,7 @@ multi-agent-onboarding/
 │   ├── 🐍 __init__.py
 │   ├── 🐍 agent.py              # Agent 1: Document Extractor (Vision)
 │   ├── 🐍 policy_validator.py   # Agent 2: Policy Validator (RAG)
-│   ├── 🐍 pii_guardian.py       # Agent 3: PII Guardian (Security)
+│   ├── 🐍 pii_guardian.py       # PII Guardian (pure function)
 │   ├── 🐍 rag_store.py          # Vector Store (ChromaDB) + Retrieval
 │   ├── 🐍 database.py           # SQLite via SQLAlchemy ORM
 │   ├── 🐍 schemas.py            # Pydantic schemas
@@ -384,7 +383,7 @@ multi-agent-onboarding/
 | Adult + Futures | KTP (35 years) + Futures | ✅ APPROVED |
 | Underage + Futures | KTP (20 years) + Futures | ❌ REJECTED |
 | Adult + Crypto | KTP (35 years) + Crypto | ✅ APPROVED |
-| Young + Crypto | KTP (35 years < 25) + Crypto | ❌ REJECTED |
+| Young + Crypto | KTP (20 years) + Crypto | ❌ REJECTED |
 
 ### Run Tests
 
@@ -404,6 +403,54 @@ python validate.py test_images/sample_ktp_young.png -a Futures
 # Manual pipeline (with save & PII report)
 python validate.py test_images/sample_ktp.png -a Crypto --save --show-pii-report
 ```
+
+---
+
+## 📊 Performance Metrics
+
+### Dashboard
+
+Access the Langfuse observability dashboard for real-time metrics:
+
+```bash
+# Start API server with tracing
+python api.py
+
+# Open dashboard at https://cloud.langfuse.com
+# Or configure self-hosted: set LANGFUSE_BASE_URL in .env
+```
+
+### CLI Benchmark
+
+Run performance benchmarks from the command line:
+
+```bash
+# Run full benchmark suite
+python benchmark.py
+
+# Generate benchmark report
+python benchmark.py --output benchmark_report.json
+
+# Export to CSV
+python benchmark.py --format csv
+```
+
+### API Metrics Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/health` | GET | System health status |
+| `/api/v1/metrics/summary` | GET | Pipeline performance metrics |
+| `/api/v1/metrics/history` | GET | Historical metrics data |
+| `/api/v1/metrics/stages` | GET | Latency breakdown by stage |
+| `/api/v1/metrics/run/{run_id}` | GET | Metrics for a specific run |
+
+### Benchmark Reports
+
+Generated reports are saved to `benchmarks/reports/`:
+
+- `benchmark_report_<timestamp>.json` - Full JSON report
+- `benchmark_report_<timestamp>.csv` - CSV summary for analysis
 
 ---
 
@@ -448,7 +495,7 @@ Available in `src/pii_guardian.py`:
 - [x] FastAPI REST endpoint (`/health`, `/validate`, `/customers`, `/audit-logs`)
 - [x] SQLite database with SQLAlchemy ORM
 - [x] ChromaDB persistent vector store
-- [x] Comprehensive pytest test suite (81 tests)
+- [x] Comprehensive pytest test suite (143 tests)
 - [x] Docker containerization
 - [x] CI/CD with GitHub Actions
 - [ ] PostgreSQL production database

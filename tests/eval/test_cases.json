@@ -1,0 +1,120 @@
+[
+  {
+    "id": "adult_futures_approved",
+    "description": "Adult (35yr) applies for Futures account",
+    "document_data": {
+      "nama": "BUDI SANTOSO",
+      "nik": "3201234567890001",
+      "tanggal_lahir": "15-08-1990",
+      "tanggal_kadaluarsa": "SEUMUR HIDUP",
+      "jenis_dokumen": "KTP",
+      "confidence": 0.95
+    },
+    "account_type": "Futures",
+    "expected": {
+      "status": "APPROVED",
+      "minimum_age_required": 21
+    }
+  },
+  {
+    "id": "young_futures_rejected",
+    "description": "Underage (20yr) applies for Futures account",
+    "document_data": {
+      "nama": "ADI PRASETYO",
+      "nik": "3201234567890002",
+      "tanggal_lahir": "10-03-2006",
+      "tanggal_kadaluarsa": "SEUMUR HIDUP",
+      "jenis_dokumen": "KTP",
+      "confidence": 0.95
+    },
+    "account_type": "Futures",
+    "expected": {
+      "status": "REJECTED",
+      "minimum_age_required": 21
+    }
+  },
+  {
+    "id": "low_confidence_rejected",
+    "description": "Blurry document with low confidence",
+    "document_data": {
+      "nama": "TIDAK TERBACA",
+      "nik": "TIDAK TERBACA",
+      "tanggal_lahir": "TIDAK TERBACA",
+      "tanggal_kadaluarsa": "TIDAK TERBACA",
+      "jenis_dokumen": "UNKNOWN",
+      "confidence": 0.15
+    },
+    "account_type": "Futures",
+    "expected": {
+      "routing": "REJECTED",
+      "reason_contains": "kualitas"
+    }
+  },
+  {
+    "id": "medium_confidence_pending",
+    "description": "Partially legible document needs human review",
+    "document_data": {
+      "nama": "BUDI SANTOSO",
+      "nik": "3201xxxxxxx001",
+      "tanggal_lahir": "15-08-1990",
+      "tanggal_kadaluarsa": "SEUMUR HIDUP",
+      "jenis_dokumen": "KTP",
+      "confidence": 0.55
+    },
+    "account_type": "Futures",
+    "expected": {
+      "routing": "PENDING_REVIEW"
+    }
+  },
+  {
+    "id": "adult_crypto_approved",
+    "description": "Adult (35yr) applies for Crypto account (min 25)",
+    "document_data": {
+      "nama": "BUDI SANTOSO",
+      "nik": "3201234567890001",
+      "tanggal_lahir": "15-08-1990",
+      "tanggal_kadaluarsa": "SEUMUR HIDUP",
+      "jenis_dokumen": "KTP",
+      "confidence": 0.95
+    },
+    "account_type": "Crypto",
+    "expected": {
+      "status": "APPROVED",
+      "minimum_age_required": 25
+    }
+  },
+  {
+    "id": "expired_document_rejected",
+    "description": "Document expired more than 30 days ago",
+    "document_data": {
+      "nama": "SITI AISYAH",
+      "nik": "3201234567890003",
+      "tanggal_lahir": "15-08-1990",
+      "tanggal_kadaluarsa": "01-01-2020",
+      "jenis_dokumen": "KTP",
+      "confidence": 0.95
+    },
+    "account_type": "Stocks",
+    "expected": {
+      "status": "REJECTED",
+      "reason_contains": "kadaluarsa"
+    }
+  },
+  {
+    "id": "pii_masking_nik",
+    "description": "NIK gets masked before storage",
+    "document_data": {
+      "nama": "BUDI SANTOSO",
+      "nik": "3201234567890001",
+      "tanggal_lahir": "15-08-1990",
+      "tanggal_kadaluarsa": "SEUMUR HIDUP",
+      "jenis_dokumen": "KTP",
+      "confidence": 0.95
+    },
+    "account_type": "Futures",
+    "expected": {
+      "pii_masked": true,
+      "nik_masked_contains": "xxxx"
+    }
+  }
+]

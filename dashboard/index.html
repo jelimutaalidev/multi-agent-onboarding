@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pipeline Metrics Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; padding: 2rem; }
+        h1 { font-size: 1.5rem; margin-bottom: 1.5rem; color: #38bdf8; }
+        .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+        .card { background: #1e293b; border-radius: 0.5rem; padding: 1.25rem; }
+        .card h3 { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+        .card .value { font-size: 1.75rem; font-weight: 700; margin-top: 0.25rem; }
+        table { width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 0.5rem; overflow: hidden; }
+        th, td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid #334155; }
+        th { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; }
+        .status-ok { color: #4ade80; }
+        .status-fail { color: #f87171; }
+        #loading { color: #94a3b8; padding: 2rem; text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>Pipeline Metrics Dashboard</h1>
+    <div id="loading">Loading metrics...</div>
+    <div class="cards" id="summary-cards" style="display:none">
+        <div class="card"><h3>Total Runs</h3><div class="value" id="total-runs">0</div></div>
+        <div class="card"><h3>Success Rate</h3><div class="value" id="success-rate">0%</div></div>
+        <div class="card"><h3>Avg Duration</h3><div class="value" id="avg-duration">0ms</div></div>
+        <div class="card"><h3>Avg Confidence</h3><div class="value" id="avg-confidence">0.0</div></div>
+    </div>
+    <h2 style="font-size:1.1rem;margin-bottom:0.75rem">Recent Runs</h2>
+    <table>
+        <thead><tr><th>Run ID</th><th>Account</th><th>Status</th><th>Duration</th><th>Confidence</th><th>Time</th></tr></thead>
+        <tbody id="runs-body"></tbody>
+    </table>
+    <script>
+    async function load() {
+        try {
+            const [sumRes, histRes] = await Promise.all([
+                fetch('/api/v1/metrics/summary'),
+                fetch('/api/v1/metrics/history?limit=20')
+            ]);
+            const summary = await sumRes.json();
+            const history = await histRes.json();
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('summary-cards').style.display = '';
+            document.getElementById('total-runs').textContent = summary.total_runs;
+            document.getElementById('success-rate').textContent = (summary.success_rate * 100).toFixed(1) + '%';
+            document.getElementById('avg-duration').textContent = summary.avg_duration_ms.toFixed(0) + 'ms';
+            document.getElementById('avg-confidence').textContent = summary.avg_confidence.toFixed(2);
+            const tbody = document.getElementById('runs-body');
+            if (!history.runs.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#64748b">No runs recorded yet</td></tr>'; return; }
+            tbody.innerHTML = history.runs.map(r => {
+                const ok = r.validation_status !== 'REJECTED';
+                return `<tr>
+                    <td><code>${r.run_id}</code></td>
+                    <td>${r.account_type || '-'}</td>
+                    <td class="${ok ? 'status-ok' : 'status-fail'}">${r.validation_status || '-'}</td>
+                    <td>${r.total_duration_ms.toFixed(0)}ms</td>
+                    <td>${r.confidence_score.toFixed(2)}</td>
+                    <td>${r.timestamp}</td>
+                </tr>`;
+            }).join('');
+        } catch(e) { document.getElementById('loading').textContent = 'Failed to load: ' + e.message; }
+    }
+    load();
+    </script>
+</body>
+</html>

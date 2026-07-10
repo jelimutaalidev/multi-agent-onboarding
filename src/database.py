@@ -26,8 +26,12 @@ class Customer(Base):
     validation_status = Column(String, comment="APPROVED / REJECTED / PENDING_REVIEW")
     account_type = Column(String, comment="Jenis akun trading")
     pii_masked = Column(Integer, default=1, comment="1 jika PII sudah di-mask")
-    pii_fields_count = Column(Integer, default=0, comment="Jumlah field PII yang di-mask")
-    created_at = Column(DateTime, default=datetime.utcnow, comment="Waktu pembuatan record")
+    pii_fields_count = Column(
+        Integer, default=0, comment="Jumlah field PII yang di-mask"
+    )
+    created_at = Column(
+        DateTime, default=datetime.utcnow, comment="Waktu pembuatan record"
+    )
 
 
 class AuditLogEntry(Base):

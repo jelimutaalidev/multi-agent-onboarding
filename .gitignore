@@ -49,3 +49,10 @@ data/chroma_db/
 
 # Test cache
 .pytest_cache/
+
+# Benchmark reports
+benchmark_report_*.json
+benchmark_report_*.csv
+benchmark_report.json
+benchmark_report.csv
+benchmarks/reports/

@@ -47,12 +47,14 @@ def temp_db_path() -> Generator[Path, None, None]:
         path = Path(f.name)
     yield path
     from sqlalchemy import create_engine
+
     try:
         engine = create_engine(f"sqlite:///{path}")
         engine.dispose()
     except Exception:
         pass
     import gc
+
     gc.collect()
     for _ in range(3):
         try:
@@ -61,6 +63,7 @@ def temp_db_path() -> Generator[Path, None, None]:
             break
         except PermissionError:
             import time
+
             time.sleep(0.1)
 
 

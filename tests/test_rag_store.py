@@ -22,6 +22,7 @@ class TestLoadPolicyDocuments:
 
     def test_invalid_directory_raises(self, monkeypatch):
         from pathlib import Path
+
         monkeypatch.setattr("src.rag_store.POLICIES_DIR", Path("/nonexistent/path"))
         with pytest.raises(FileNotFoundError):
             load_policy_documents()
