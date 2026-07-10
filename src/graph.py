@@ -5,12 +5,14 @@ pipeline in a StateGraph for end-to-end tracing, confidence routing,
 and future support for human-in-the-loop.
 """
 
+import time
 from contextvars import ContextVar
 
 from langgraph.graph import END, START, StateGraph
 from typing_extensions import NotRequired, TypedDict
 
 from .agent import extract_document_data
+from .metrics import PipelineRunMetric, StageMetric, get_metrics_collector
 from .pii_guardian import get_pii_report, mask_dict, process_and_save_customer
 from .policy_validator import validate_customer_from_document_data
 from .schemas import RoutingDecision, make_routing_decision
@@ -89,14 +91,44 @@ def route_after_extraction(state: OnboardingState) -> str:
 pipeline = None
 
 
-def build_pipeline() -> StateGraph:
+def build_pipeline(metrics: dict | None = None) -> StateGraph:
     builder = StateGraph(OnboardingState)
 
-    builder.add_node("extract_document", extract_document_node)
-    builder.add_node("validate_policy", validate_policy_node)
-    builder.add_node("mask_pii", mask_pii_node)
-    builder.add_node("save_customer", save_customer_node)
-    builder.add_node("generate_report", generate_report_node)
+    if metrics is not None:
+        def _wrap(name, func):
+            def wrapper(state):
+                start = time.monotonic()
+                try:
+                    result = func(state)
+                    duration = (time.monotonic() - start) * 1000
+                    metrics["stages"].append(
+                        StageMetric(stage=name, duration_ms=duration, success=True)
+                    )
+                    return result
+                except Exception as exc:
+                    duration = (time.monotonic() - start) * 1000
+                    metrics["stages"].append(
+                        StageMetric(
+                            stage=name,
+                            duration_ms=duration,
+                            success=False,
+                            error_message=str(exc),
+                        )
+                    )
+                    raise
+            return wrapper
+
+        builder.add_node("extract_document", _wrap("extract_document", extract_document_node))
+        builder.add_node("validate_policy", _wrap("validate_policy", validate_policy_node))
+        builder.add_node("mask_pii", _wrap("mask_pii", mask_pii_node))
+        builder.add_node("save_customer", _wrap("save_customer", save_customer_node))
+        builder.add_node("generate_report", _wrap("generate_report", generate_report_node))
+    else:
+        builder.add_node("extract_document", extract_document_node)
+        builder.add_node("validate_policy", validate_policy_node)
+        builder.add_node("mask_pii", mask_pii_node)
+        builder.add_node("save_customer", save_customer_node)
+        builder.add_node("generate_report", generate_report_node)
 
     builder.add_edge(START, "extract_document")
 
@@ -127,8 +159,39 @@ def run_pipeline(
     callbacks: list | None = None,
 ) -> dict:
     _callbacks_var.set(callbacks or [])
-    result = get_pipeline().invoke({
-        "image_path": image_path,
-        "account_type": account_type,
-    })
-    return result.get("final_report") or result
+    metrics: dict = {"stages": []}
+    pipeline_start = time.monotonic()
+
+    graph = build_pipeline(metrics=metrics)
+    try:
+        result = graph.invoke({
+            "image_path": image_path,
+            "account_type": account_type,
+        })
+    except Exception:
+        total_duration = (time.monotonic() - pipeline_start) * 1000
+        run_metric = PipelineRunMetric(
+            total_duration_ms=total_duration,
+            stages=metrics["stages"],
+            account_type=account_type,
+            validation_status="ERROR",
+        )
+        get_metrics_collector().record_run(run_metric)
+        raise
+
+    total_duration = (time.monotonic() - pipeline_start) * 1000
+
+    final_report = result.get("final_report") or result
+    doc_data = result.get("document_data", {})
+    val_result = result.get("validation_result", {})
+
+    run_metric = PipelineRunMetric(
+        total_duration_ms=total_duration,
+        stages=metrics["stages"],
+        account_type=account_type,
+        confidence_score=doc_data.get("confidence", 0.0),
+        validation_status=val_result.get("status", ""),
+    )
+    get_metrics_collector().record_run(run_metric)
+
+    return final_report
