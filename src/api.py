@@ -12,9 +12,10 @@ from typing import Any
 
 import structlog
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, UploadFile, HTTPException, Request
+from fastapi import FastAPI, File, Form, Query, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIASGIMiddleware
@@ -33,6 +34,7 @@ init_tracing()
 from src.graph import run_pipeline
 from src.schemas import make_routing_decision, RoutingDecision, ReviewRequest
 from src.database import Database
+from src.metrics import get_metrics_collector
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 ACCOUNT_TYPES = {"Stocks", "ETF", "Futures", "Options", "Margin", "Forex", "Crypto"}
@@ -193,6 +195,79 @@ async def list_customers(request: Request):
 async def list_audit_logs(request: Request):
     db = Database()
     return JSONResponse(content=db.get_audit_logs())
+
+
+# --- Metrics endpoints ---
+
+
+@app.get("/api/v1/metrics/summary")
+@limiter.limit(os.getenv("RATE_LIMIT_READ", "30/minute"))
+async def metrics_summary(
+    request: Request,
+    hours: int | None = Query(None, ge=1, le=8760, description="Filter by last N hours"),
+):
+    collector = get_metrics_collector()
+    summary = collector.get_summary(hours=hours)
+    return JSONResponse(content=summary.model_dump())
+
+
+@app.get("/api/v1/metrics/history")
+@limiter.limit(os.getenv("RATE_LIMIT_READ", "30/minute"))
+async def metrics_history(
+    request: Request,
+    limit: int = Query(50, ge=1, le=500, description="Max records per page"),
+    offset: int = Query(0, ge=0, description="Records to skip"),
+):
+    collector = get_metrics_collector()
+    runs = collector.get_history(limit=limit, offset=offset)
+    total = len(collector.get_all_records())
+    return JSONResponse(
+        content={
+            "runs": [r.model_dump() for r in runs],
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+    )
+
+
+@app.get("/api/v1/metrics/stages")
+@limiter.limit(os.getenv("RATE_LIMIT_READ", "30/minute"))
+async def metrics_stages(
+    request: Request,
+    hours: int | None = Query(None, ge=1, le=8760, description="Filter by last N hours"),
+):
+    collector = get_metrics_collector()
+    breakdown = collector.get_stage_breakdown(hours=hours)
+    return JSONResponse(content=[b.model_dump() for b in breakdown])
+
+
+@app.get("/api/v1/metrics/run/{run_id}")
+@limiter.limit(os.getenv("RATE_LIMIT_READ", "30/minute"))
+async def metrics_run_detail(request: Request, run_id: str):
+    collector = get_metrics_collector()
+    all_records = collector.get_all_records()
+    for record in all_records:
+        if record.run_id == run_id:
+            return JSONResponse(content=record.model_dump())
+    raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+
+
+# --- Dashboard ---
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard():
+    dashboard_path = Path(__file__).parent.parent / "dashboard" / "index.html"
+    if not dashboard_path.exists():
+        raise HTTPException(status_code=404, detail="Dashboard not found")
+    return HTMLResponse(content=dashboard_path.read_text(encoding="utf-8"))
+
+
+# Mount static files if directory exists
+_static_dir = Path(__file__).parent.parent / "dashboard"
+if _static_dir.is_dir():
+    app.mount("/static/dashboard", StaticFiles(directory=str(_static_dir)), name="dashboard-static")
 
 
 @app.on_event("shutdown")
