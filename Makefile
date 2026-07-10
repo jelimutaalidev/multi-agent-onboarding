@@ -1,4 +1,4 @@
-.PHONY: install test run api docker-build docker-up lint clean precommit
+.PHONY: install test run api docker-build docker-up lint clean precommit benchmark benchmark-stress benchmark-csv
 
 install:
 	pip install -r requirements.txt
@@ -46,5 +46,14 @@ clean:
 	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null; \
 	find . -type f -name "*.pyc" -delete 2>/dev/null; \
 	find . -type f -name "*.pyo" -delete 2>/dev/null
+
+benchmark:
+	python benchmark.py --runs 5 --account-type Futures
+
+benchmark-stress:
+	python benchmark.py --runs 20 --concurrent --account-type Futures
+
+benchmark-csv:
+	python benchmark.py --runs 10 --format csv --output benchmark_results.csv
 
 all: install test
